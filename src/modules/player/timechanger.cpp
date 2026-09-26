@@ -1,7 +1,7 @@
 #include "timechanger.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
 
 static int (*_getTime_orig)(void* _this);
 static void (*_setTime_orig)(void* _this, int time);
@@ -63,12 +63,12 @@ void TimeChangerModule::updateRealTime(int newTime) {
 void TimeChangerModule::onInit() {
     if (m_patchTargetGetTime) return;
     
-    uintptr_t addrGetTime = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::Time);
+    uintptr_t addrGetTime = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::Time);
     if (addrGetTime != 0) {
         m_patchTargetGetTime = (void*)addrGetTime;
     }
 
-    uintptr_t addrSetTime = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::SetTime);
+    uintptr_t addrSetTime = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::SetTime);
     if (addrSetTime != 0) {
         m_patchTargetSetTime = (void*)addrSetTime;
     }
@@ -78,8 +78,8 @@ void TimeChangerModule::onInit() {
 
 void TimeChangerModule::applyPatch() {
     if (m_patched || !m_patchTargetGetTime || !m_patchTargetSetTime) return;
-    bedrocktools::hooks::install(m_patchTargetGetTime, (void*)_getTime_hook, (void**)&_getTime_orig);
-    bedrocktools::hooks::install(m_patchTargetSetTime, (void*)_setTime_hook, (void**)&_setTime_orig);
+    bedrocktoolsplus::hooks::install(m_patchTargetGetTime, (void*)_getTime_hook, (void**)&_getTime_orig);
+    bedrocktoolsplus::hooks::install(m_patchTargetSetTime, (void*)_setTime_hook, (void**)&_setTime_orig);
     m_patched = true;
 }
 

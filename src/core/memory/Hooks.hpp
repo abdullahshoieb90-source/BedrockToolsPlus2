@@ -6,7 +6,7 @@
 #include <new>
 #include <pl/memory/Hook.hpp>
 
-namespace bedrocktools::hooks {
+namespace bedrocktoolsplus::hooks {
 
 using LibraryHandle = void*;
 

@@ -1,9 +1,9 @@
 #include "keystrokes.hpp"
 #include "modules/ModuleRegistry.hpp"
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/input/MoveInput.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/input/MoveInput.hpp>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -63,7 +63,7 @@ bool KeystrokesModule::playerSwingDetour(void* player, std::uint8_t source) {
 static void s_normalTickCallback(void* player) {
     if (!g_keystrokesMod || !g_keystrokesMod->enabled) return;
 
-    auto* moveInput = bedrocktools::sdk::moveInputComponent(player);
+    auto* moveInput = bedrocktoolsplus::sdk::moveInputComponent(player);
     if (!moveInput) return;
 
     const auto& raw = moveInput->mRawInputState;
@@ -88,39 +88,39 @@ KeystrokesModule::~KeystrokesModule() {
 }
 
 void KeystrokesModule::onInit() {
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([this](auto& event) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([this](auto& event) {
         resolveNativeInputTick();
         s_normalTickCallback(event.player);
     });
-    bedrocktools::events::bus().subscribe<bedrocktools::events::GameModeActionEvent>([this](auto& event) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::GameModeActionEvent>([this](auto& event) {
         switch (event.action) {
-            case bedrocktools::events::GameModeAction::StartDestroyBlock:
+            case bedrocktoolsplus::events::GameModeAction::StartDestroyBlock:
                 if (!m_destroyActive.exchange(true, std::memory_order_relaxed)) queueNativeExplicitLeft();
                 break;
-            case bedrocktools::events::GameModeAction::StopDestroyBlock:
+            case bedrocktoolsplus::events::GameModeAction::StopDestroyBlock:
                 m_destroyActive.store(false, std::memory_order_relaxed);
                 break;
-            case bedrocktools::events::GameModeAction::Attack:
+            case bedrocktoolsplus::events::GameModeAction::Attack:
                 queueNativeExplicitLeft();
                 break;
-            case bedrocktools::events::GameModeAction::Interact:
+            case bedrocktoolsplus::events::GameModeAction::Interact:
                 queueNativeRight(interactSwingMask);
                 break;
-            case bedrocktools::events::GameModeAction::UseItemOn:
+            case bedrocktoolsplus::events::GameModeAction::UseItemOn:
                 break;
-            case bedrocktools::events::GameModeAction::UseItem:
+            case bedrocktoolsplus::events::GameModeAction::UseItem:
                 if (event.hasNativeResult && event.nativeResult) queueNativeRight(useItemSwingMask);
                 break;
-            case bedrocktools::events::GameModeAction::StartBuildBlock:
-            case bedrocktools::events::GameModeAction::UseItemAsAttack:
+            case bedrocktoolsplus::events::GameModeAction::StartBuildBlock:
+            case bedrocktoolsplus::events::GameModeAction::UseItemAsAttack:
                 break;
         }
     });
 
     if (!m_playerSwingHooked) {
-        const auto address = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::LocalPlayerSwing);
+        const auto address = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::LocalPlayerSwing);
         if (address) {
-            const auto handle = bedrocktools::hooks::install(reinterpret_cast<void*>(address), reinterpret_cast<void*>(playerSwingDetour), reinterpret_cast<void**>(&s_playerSwingOriginal));
+            const auto handle = bedrocktoolsplus::hooks::install(reinterpret_cast<void*>(address), reinterpret_cast<void*>(playerSwingDetour), reinterpret_cast<void**>(&s_playerSwingOriginal));
             m_playerSwingHooked = handle != nullptr;
         }
     }

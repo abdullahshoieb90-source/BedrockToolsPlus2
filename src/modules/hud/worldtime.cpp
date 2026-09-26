@@ -1,8 +1,8 @@
 #include "worldtime.hpp"
 #include "modules/ModuleRegistry.hpp"
 #include "modules/player/timechanger.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/world/Actor.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/world/Actor.hpp>
 #include <algorithm>
 #include <cstdio>
 
@@ -37,13 +37,13 @@ WorldTimeModule::WorldTimeModule()
     : Module("World Time", "Displays the world clock in 12-hour or 24-hour format.") {}
 
 WorldTimeModule::~WorldTimeModule() {
-    bedrocktools::events::bus().unsubscribe(m_subscription);
+    bedrocktoolsplus::events::bus().unsubscribe(m_subscription);
 }
 
 void WorldTimeModule::onInit() {
     if (m_subscription != 0) return;
-    m_timeChanger = static_cast<TimeChangerModule*>(ModuleRegistry::get().find("bedrocktools.Time Changer"));
-    m_subscription = bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>(
+    m_timeChanger = static_cast<TimeChangerModule*>(ModuleRegistry::get().find("bedrocktoolsplus.Time Changer"));
+    m_subscription = bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>(
         [this](auto& event) {
             auto* player = event.player;
             auto* level = player ? player->level() : nullptr;

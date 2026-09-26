@@ -1,6 +1,6 @@
 #include "autogg.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 #include "core/memory/Hooks.hpp"
 #include "core/GameHooks.hpp"
 #include <string>
@@ -40,44 +40,44 @@ static void sendGGCommand() {
     if (!canSendGG()) return;
     
     
-    if (!sendToServer) sendToServer = (decltype(sendToServer)) bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::LoopbackPacketSenderSendToServer);
-    if (!getPacketSender) getPacketSender = (decltype(getPacketSender)) bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ClientInstanceGetPacketSender);
-    if (!createPacket) createPacket = (decltype(createPacket)) bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::MinecraftPacketsCreatePacket);
+    if (!sendToServer) sendToServer = (decltype(sendToServer)) bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::LoopbackPacketSenderSendToServer);
+    if (!getPacketSender) getPacketSender = (decltype(getPacketSender)) bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ClientInstanceGetPacketSender);
+    if (!createPacket) createPacket = (decltype(createPacket)) bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::MinecraftPacketsCreatePacket);
     
-    if (!createPacket || !sendToServer || !getPacketSender || !bedrocktools::core::gamehooks::clientInstance()) return;
+    if (!createPacket || !sendToServer || !getPacketSender || !bedrocktoolsplus::core::gamehooks::clientInstance()) return;
 
     std::shared_ptr<void> pktSp = createPacket(9); 
     
     void* pkt = pktSp.get();
     if (!pkt) return;
     
-    uintptr_t payload = (uintptr_t)pkt + bedrocktools::sdk::offsets::Packet::Size;
+    uintptr_t payload = (uintptr_t)pkt + bedrocktoolsplus::sdk::offsets::Packet::Size;
     
-    std::string* msgOnlyStr = reinterpret_cast<std::string*>(payload + bedrocktools::sdk::offsets::TextPacketPayload::MessageOnly::mMessage);
+    std::string* msgOnlyStr = reinterpret_cast<std::string*>(payload + bedrocktoolsplus::sdk::offsets::TextPacketPayload::MessageOnly::mMessage);
     msgOnlyStr->~basic_string();
 
-    *reinterpret_cast<uint32_t*>(payload + bedrocktools::sdk::offsets::TextPacketPayload::mVariantIndex) = 1;
+    *reinterpret_cast<uint32_t*>(payload + bedrocktoolsplus::sdk::offsets::TextPacketPayload::mVariantIndex) = 1;
 
-    *reinterpret_cast<uint8_t*>(payload + bedrocktools::sdk::offsets::TextPacketPayload::AuthorAndMessage::mType) = 1;
-    new ((void*)(payload + bedrocktools::sdk::offsets::TextPacketPayload::AuthorAndMessage::mAuthor)) std::string("");
+    *reinterpret_cast<uint8_t*>(payload + bedrocktoolsplus::sdk::offsets::TextPacketPayload::AuthorAndMessage::mType) = 1;
+    new ((void*)(payload + bedrocktoolsplus::sdk::offsets::TextPacketPayload::AuthorAndMessage::mAuthor)) std::string("");
     std::string customGg = AutoGG::instance ? AutoGG::instance->ggMessage : "gg";
-    new ((void*)(payload + bedrocktools::sdk::offsets::TextPacketPayload::AuthorAndMessage::mMessage)) std::string(customGg);
+    new ((void*)(payload + bedrocktoolsplus::sdk::offsets::TextPacketPayload::AuthorAndMessage::mMessage)) std::string(customGg);
     
     
-    void* sender = getPacketSender(bedrocktools::core::gamehooks::clientInstance());
+    void* sender = getPacketSender(bedrocktoolsplus::core::gamehooks::clientInstance());
     if (sender) {
         sendToServer(sender, pkt);
     }
 }
 
 static std::string getTextPacketMessage(void* packet) {
-    uintptr_t payload = (uintptr_t)packet + bedrocktools::sdk::offsets::Packet::Size;
-    uint32_t variantIndex = *reinterpret_cast<uint32_t*>(payload + bedrocktools::sdk::offsets::TextPacketPayload::mVariantIndex);
+    uintptr_t payload = (uintptr_t)packet + bedrocktoolsplus::sdk::offsets::Packet::Size;
+    uint32_t variantIndex = *reinterpret_cast<uint32_t*>(payload + bedrocktoolsplus::sdk::offsets::TextPacketPayload::mVariantIndex);
     
     if (variantIndex == 1) {
-        return *reinterpret_cast<std::string*>(payload + bedrocktools::sdk::offsets::TextPacketPayload::AuthorAndMessage::mMessage);
+        return *reinterpret_cast<std::string*>(payload + bedrocktoolsplus::sdk::offsets::TextPacketPayload::AuthorAndMessage::mMessage);
     } else if (variantIndex == 0 || variantIndex == 2) {
-        return *reinterpret_cast<std::string*>(payload + bedrocktools::sdk::offsets::TextPacketPayload::MessageOnly::mMessage);
+        return *reinterpret_cast<std::string*>(payload + bedrocktoolsplus::sdk::offsets::TextPacketPayload::MessageOnly::mMessage);
     }
     return "";
 }
@@ -135,11 +135,11 @@ static void onHandleSetTitlePacket(void* handler, void* source, void* packet) {
     }
 
     if (AutoGG::instance && AutoGG::instance->enabled) {
-        uintptr_t payload = (uintptr_t)packet + bedrocktools::sdk::offsets::Packet::Size;
-        int packetType = *reinterpret_cast<int*>(payload + bedrocktools::sdk::offsets::SetTitlePacketPayload::mType);
+        uintptr_t payload = (uintptr_t)packet + bedrocktoolsplus::sdk::offsets::Packet::Size;
+        int packetType = *reinterpret_cast<int*>(payload + bedrocktoolsplus::sdk::offsets::SetTitlePacketPayload::mType);
         
         if (packetType == 0 || packetType == 1) {
-            std::string text = *reinterpret_cast<std::string*>(payload + bedrocktools::sdk::offsets::SetTitlePacketPayload::mTitleText);
+            std::string text = *reinterpret_cast<std::string*>(payload + bedrocktoolsplus::sdk::offsets::SetTitlePacketPayload::mTitleText);
             if (checkTitle(text)) {
                 sendGGCommand();
             }
@@ -162,14 +162,14 @@ static void onHandleTextPacket(void* handler, void* source, void* packet) {
 }
 
 void AutoGG::onInit() {
-    uintptr_t setTitleAddr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ClientNetworkHandlerHandleSetTitle);
+    uintptr_t setTitleAddr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ClientNetworkHandlerHandleSetTitle);
     if (setTitleAddr) {
-        bedrocktools::hooks::install((void*)setTitleAddr, (void*)onHandleSetTitlePacket, (void**)&onHandleSetTitlePacket_orig);
+        bedrocktoolsplus::hooks::install((void*)setTitleAddr, (void*)onHandleSetTitlePacket, (void**)&onHandleSetTitlePacket_orig);
     }
     
-    uintptr_t setTxtAddr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ClientNetworkHandlerHandleText);
+    uintptr_t setTxtAddr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ClientNetworkHandlerHandleText);
     if (setTxtAddr) {
-        bedrocktools::hooks::install((void*)setTxtAddr, (void*)onHandleTextPacket, (void**)&onHandleTextPacket_orig);
+        bedrocktoolsplus::hooks::install((void*)setTxtAddr, (void*)onHandleTextPacket, (void**)&onHandleTextPacket_orig);
     }
 }
 

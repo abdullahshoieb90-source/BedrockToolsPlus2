@@ -1,9 +1,9 @@
 #include "pingcounter.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 #include <chrono>
 
 static void (*_update_orig)(void* _this);
@@ -16,7 +16,7 @@ static void _update_hook(void* _this) {
     }
     
     if (g_pingMod && g_pingMod->enabled) {
-        int avgPing = *(int*)((uintptr_t)_this + bedrocktools::sdk::offsets::RakNetConnector::mAvgPing);
+        int avgPing = *(int*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::RakNetConnector::mAvgPing);
         if (avgPing >= 0) {
             g_pingMod->m_ping = avgPing;
             g_last_update_time = std::chrono::steady_clock::now();
@@ -47,7 +47,7 @@ PingCounterModule::~PingCounterModule() {
 
 void PingCounterModule::onInit() {
     if (m_patchTarget) return;
-    uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::RaknetUpdate);
+    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RaknetUpdate);
     if (addr != 0) {
         m_patchTarget = (void*)addr;
     }
@@ -55,7 +55,7 @@ void PingCounterModule::onInit() {
 
 void PingCounterModule::applyPatch() {
     if (m_patched || !m_patchTarget) return;
-    bedrocktools::hooks::install(m_patchTarget, (void*)_update_hook, (void**)&_update_orig);
+    bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_update_hook, (void**)&_update_orig);
     m_patched = true;
 }
 

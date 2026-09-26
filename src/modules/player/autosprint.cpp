@@ -1,15 +1,15 @@
 #include "autosprint.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/input/MoveInput.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/input/MoveInput.hpp>
 
 AutoSprintModule::AutoSprintModule()
     : Module("AutoSprint", "Holds Minecraft's native sprint input for you.") {}
 
 void AutoSprintModule::onInit() {
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerPreTickEvent>([this](auto& event) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerPreTickEvent>([this](auto& event) {
         if (!enabled || !event.player) return;
-        auto* input = bedrocktools::sdk::moveInputComponent(event.player);
+        auto* input = bedrocktoolsplus::sdk::moveInputComponent(event.player);
         if (!input) return;
         input->mRawInputState.set(MoveInputState::Flag::SprintDown, true);
-    }, bedrocktools::events::EventPriority::First);
+    }, bedrocktoolsplus::events::EventPriority::First);
 }

@@ -1,7 +1,7 @@
 #include "zoom.hpp"
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
 #include <pl/ModMenu.hpp>
 #include <cmath>
 #include <algorithm>
@@ -93,25 +93,25 @@ ZoomModule::~ZoomModule() {
 
 void ZoomModule::onInit() {
     if (!m_fovHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::GetFov);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::GetFov);
         if (addr != 0) {
-            bedrocktools::hooks::install((void*)addr, (void*)_getFov_zoom_hook, (void**)&_getFov_orig);
+            bedrocktoolsplus::hooks::install((void*)addr, (void*)_getFov_zoom_hook, (void**)&_getFov_orig);
             m_fovHooked = true;
         }
     }
     
     if (!m_turnDeltaHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::LocalPlayerApplyTurnDelta);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::LocalPlayerApplyTurnDelta);
         if (addr != 0) {
-            bedrocktools::hooks::install((void*)addr, (void*)_applyTurnDelta_hook, (void**)&_applyTurnDelta_orig);
+            bedrocktoolsplus::hooks::install((void*)addr, (void*)_applyTurnDelta_hook, (void**)&_applyTurnDelta_orig);
             m_turnDeltaHooked = true;
         }
     }
     
     if (!m_hideHandHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BaseOptionRegistryGetHideItemInHand);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BaseOptionRegistryGetHideItemInHand);
         if (addr != 0) {
-            bedrocktools::hooks::install((void*)addr, (void*)_getHideItemInHand_hook, (void**)&_getHideItemInHand_orig);
+            bedrocktoolsplus::hooks::install((void*)addr, (void*)_getHideItemInHand_hook, (void**)&_getHideItemInHand_orig);
             m_hideHandHooked = true;
         }
     }
@@ -183,8 +183,8 @@ static const char* zoomEnabledSvg = R"svg(<svg viewBox="0 0 64 64" xmlns="http:/
 
 void ZoomModule::updateZoomButton() {
     if (m_overlayToggle) {
-        pl::modmenu::ButtonBuilder("bedrocktools.Zoom.Button", "Zoom")
-                .moduleId("bedrocktools.Zoom")
+        pl::modmenu::ButtonBuilder("bedrocktoolsplus.Zoom.Button", "Zoom")
+                .moduleId("bedrocktoolsplus.Zoom")
                 .behavior(pl::modmenu::ButtonBehavior::Toggle)
                 .stylePreset(pl::modmenu::ButtonStylePreset::Accent)
                 .styleColors(0x00000001, 0x00000001, 0x00000001)
@@ -204,6 +204,6 @@ void ZoomModule::updateZoomButton() {
                 })
                 .registerButton();
     } else {
-        pl::modmenu::unregisterButton("bedrocktools.Zoom.Button");
+        pl::modmenu::unregisterButton("bedrocktoolsplus.Zoom.Button");
     }
 }

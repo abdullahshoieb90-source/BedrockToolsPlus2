@@ -1,6 +1,6 @@
 #include "nodisconnect.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
 #include "core/memory/Hooks.hpp"
 
 static bool (*original_isInEDUMultiplayerSession)(void* _this) = nullptr;
@@ -25,10 +25,10 @@ NoDisconnectModule::NoDisconnectModule()
 void NoDisconnectModule::onInit() {
     if (m_patchTarget) return;
     
-    uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::EduMultiplayer);
+    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::EduMultiplayer);
     if (addr != 0) {
         m_patchTarget = (void*)addr;
-        bedrocktools::hooks::install(m_patchTarget, (void*)isInEDUMultiplayerSession_hook, (void**)&original_isInEDUMultiplayerSession);
+        bedrocktoolsplus::hooks::install(m_patchTarget, (void*)isInEDUMultiplayerSession_hook, (void**)&original_isInEDUMultiplayerSession);
         m_patched = true;
     }
 }

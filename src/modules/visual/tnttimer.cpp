@@ -1,8 +1,8 @@
 #include "tnttimer.hpp"
 
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -37,14 +37,14 @@ std::unordered_map<void*, OriginalNametagState> g_originalStates;
 void* getEntityDataWrapper(void* actor) {
     if (!actor) return nullptr;
     return reinterpret_cast<void*>(
-        reinterpret_cast<std::uintptr_t>(actor) + bedrocktools::sdk::offsets::Actor::mEntityData
+        reinterpret_cast<std::uintptr_t>(actor) + bedrocktoolsplus::sdk::offsets::Actor::mEntityData
     );
 }
 
 void* getEntityContext(void* actor) {
     if (!actor) return nullptr;
     return reinterpret_cast<void*>(
-        reinterpret_cast<std::uintptr_t>(actor) + bedrocktools::sdk::offsets::Actor::mEntityContext
+        reinterpret_cast<std::uintptr_t>(actor) + bedrocktoolsplus::sdk::offsets::Actor::mEntityContext
     );
 }
 
@@ -94,7 +94,7 @@ void* findSCharDataItemVtable(void* component) {
 
         const auto address = reinterpret_cast<std::uintptr_t>(item);
         const auto type = *reinterpret_cast<const std::uint8_t*>(
-            address + bedrocktools::sdk::offsets::DataItem::mType
+            address + bedrocktoolsplus::sdk::offsets::DataItem::mType
         );
         if (type == 0) return *reinterpret_cast<void**>(item);
     }
@@ -106,7 +106,7 @@ bool readAlwaysShowItem(void* actor, std::int8_t& value) {
     void* component = getDataComponent(actor);
     if (!component) return false;
 
-    constexpr std::size_t id = bedrocktools::sdk::offsets::ActorDataIds::NametagAlwaysShow;
+    constexpr std::size_t id = bedrocktoolsplus::sdk::offsets::ActorDataIds::NametagAlwaysShow;
     if (getItemsSize(component) <= id) return false;
 
     auto** begin = getItemsBegin(component);
@@ -117,15 +117,15 @@ bool readAlwaysShowItem(void* actor, std::int8_t& value) {
 
     const auto address = reinterpret_cast<std::uintptr_t>(item);
     const auto type = *reinterpret_cast<const std::uint8_t*>(
-        address + bedrocktools::sdk::offsets::DataItem::mType
+        address + bedrocktoolsplus::sdk::offsets::DataItem::mType
     );
     const auto itemId = *reinterpret_cast<const std::uint16_t*>(
-        address + bedrocktools::sdk::offsets::DataItem::mId
+        address + bedrocktoolsplus::sdk::offsets::DataItem::mId
     );
     if (type != 0 || itemId != id) return false;
 
     value = *reinterpret_cast<const std::int8_t*>(
-        address + bedrocktools::sdk::offsets::DataItem::mValue
+        address + bedrocktoolsplus::sdk::offsets::DataItem::mValue
     );
     return true;
 }
@@ -139,7 +139,7 @@ bool writeAlwaysShowItem(void* actor, std::int8_t value) {
     if (!wrapper || !context || !component) return false;
 
     constexpr std::uint16_t id = static_cast<std::uint16_t>(
-        bedrocktools::sdk::offsets::ActorDataIds::NametagAlwaysShow
+        bedrocktoolsplus::sdk::offsets::ActorDataIds::NametagAlwaysShow
     );
 
     g_ensureIndex(component, id);
@@ -156,25 +156,25 @@ bool writeAlwaysShowItem(void* actor, std::int8_t value) {
         std::memset(item, 0, 16);
         *reinterpret_cast<void**>(item) = vtable;
         *reinterpret_cast<std::uint8_t*>(
-            reinterpret_cast<std::uintptr_t>(item) + bedrocktools::sdk::offsets::DataItem::mType
+            reinterpret_cast<std::uintptr_t>(item) + bedrocktoolsplus::sdk::offsets::DataItem::mType
         ) = 0;
         *reinterpret_cast<std::uint16_t*>(
-            reinterpret_cast<std::uintptr_t>(item) + bedrocktools::sdk::offsets::DataItem::mId
+            reinterpret_cast<std::uintptr_t>(item) + bedrocktoolsplus::sdk::offsets::DataItem::mId
         ) = id;
         begin[id] = item;
     }
 
     const auto address = reinterpret_cast<std::uintptr_t>(item);
     const auto type = *reinterpret_cast<const std::uint8_t*>(
-        address + bedrocktools::sdk::offsets::DataItem::mType
+        address + bedrocktoolsplus::sdk::offsets::DataItem::mType
     );
     const auto itemId = *reinterpret_cast<const std::uint16_t*>(
-        address + bedrocktools::sdk::offsets::DataItem::mId
+        address + bedrocktoolsplus::sdk::offsets::DataItem::mId
     );
     if (type != 0 || itemId != id) return false;
 
     *reinterpret_cast<std::int8_t*>(
-        address + bedrocktools::sdk::offsets::DataItem::mValue
+        address + bedrocktoolsplus::sdk::offsets::DataItem::mValue
     ) = value;
 
     markDataItemPresentAndDirty(component, id);
@@ -188,7 +188,7 @@ int readFuseTicks(void* actor) {
     void* component = getDataComponent(actor);
     if (!component) return -1;
 
-    constexpr std::size_t fuseId = bedrocktools::sdk::offsets::ActorDataIds::FuseTime;
+    constexpr std::size_t fuseId = bedrocktoolsplus::sdk::offsets::ActorDataIds::FuseTime;
     if (getItemsSize(component) <= fuseId) return -1;
 
     auto** begin = getItemsBegin(component);
@@ -199,15 +199,15 @@ int readFuseTicks(void* actor) {
 
     const auto itemAddress = reinterpret_cast<std::uintptr_t>(item);
     const auto type = *reinterpret_cast<const std::uint8_t*>(
-        itemAddress + bedrocktools::sdk::offsets::DataItem::mType
+        itemAddress + bedrocktoolsplus::sdk::offsets::DataItem::mType
     );
     const auto id = *reinterpret_cast<const std::uint16_t*>(
-        itemAddress + bedrocktools::sdk::offsets::DataItem::mId
+        itemAddress + bedrocktoolsplus::sdk::offsets::DataItem::mId
     );
-    if (type != bedrocktools::sdk::offsets::DataItem::IntType || id != fuseId) return -1;
+    if (type != bedrocktoolsplus::sdk::offsets::DataItem::IntType || id != fuseId) return -1;
 
     return *reinterpret_cast<const int*>(
-        itemAddress + bedrocktools::sdk::offsets::DataItem::mValue
+        itemAddress + bedrocktoolsplus::sdk::offsets::DataItem::mValue
     );
 }
 
@@ -282,26 +282,26 @@ TntTimerModule::~TntTimerModule() {
 
 void TntTimerModule::onInit() {
     g_getNameTag = reinterpret_cast<ActorGetNameTagFn>(
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ActorGetNameTag)
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorGetNameTag)
     );
     g_setNameTag = reinterpret_cast<ActorSetNameTagFn>(
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ActorSetNameTag)
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorSetNameTag)
     );
     g_ensureIndex = reinterpret_cast<SynchedActorDataEnsureIndexFn>(
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::SynchedActorDataEnsureIndex)
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::SynchedActorDataEnsureIndex)
     );
     g_updateAlwaysShowNameTag = reinterpret_cast<ActorSynchedDataUpdateAlwaysShowNameTagFn>(
-        bedrocktools::memory::resolve(
-            bedrocktools::memory::SignatureId::ActorSynchedDataUpdateAlwaysShowNameTag
+        bedrocktoolsplus::memory::resolve(
+            bedrocktoolsplus::memory::SignatureId::ActorSynchedDataUpdateAlwaysShowNameTag
         )
     );
 
-    const auto normalTick = bedrocktools::memory::resolve(
-        bedrocktools::memory::SignatureId::PrimedTntNormalTick
+    const auto normalTick = bedrocktoolsplus::memory::resolve(
+        bedrocktoolsplus::memory::SignatureId::PrimedTntNormalTick
     );
     if (!normalTick || g_normalTickOriginal) return;
 
-    bedrocktools::hooks::install(
+    bedrocktoolsplus::hooks::install(
         reinterpret_cast<void*>(normalTick),
         reinterpret_cast<void*>(primedTntNormalTickHook),
         reinterpret_cast<void**>(&g_normalTickOriginal)

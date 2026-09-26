@@ -1,9 +1,9 @@
 #include "nick.hpp"
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
 #include <map>
 #include <string>
 
@@ -82,8 +82,8 @@ static void _drawText_hook(void* _this, void* font, void* rect, std::string* tex
 static void (*_setNameTag_orig)(void*, std::string*) = nullptr;
 static void nickTick(void* _this) {
     if (g_nickMod && g_nickMod->enabled) {
-        std::string* pName = (std::string*)((uintptr_t)_this + bedrocktools::sdk::offsets::Player::mName);
-        std::string* pFilteredNameTag = (std::string*)((uintptr_t)_this + bedrocktools::sdk::offsets::Actor::mFilteredNameTag);
+        std::string* pName = (std::string*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Player::mName);
+        std::string* pFilteredNameTag = (std::string*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Actor::mFilteredNameTag);
         
         if (g_nickMod->m_originalName.empty()) {
             g_nickMod->m_originalName = *pName;
@@ -116,8 +116,8 @@ static void nickTick(void* _this) {
             *pName = val;
         }
     } else if (g_nickMod && !g_nickMod->enabled) {
-        std::string* pName = (std::string*)((uintptr_t)_this + bedrocktools::sdk::offsets::Player::mName);
-        std::string* pFilteredNameTag = (std::string*)((uintptr_t)_this + bedrocktools::sdk::offsets::Actor::mFilteredNameTag);
+        std::string* pName = (std::string*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Player::mName);
+        std::string* pFilteredNameTag = (std::string*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Actor::mFilteredNameTag);
         
         if (!g_nickMod->m_originalNametag.empty() && !g_nickMod->m_backupNametag.empty()) {
             if (g_nickMod->m_originalNametag == g_nickMod->m_fakeName) {
@@ -148,17 +148,17 @@ NickModule::~NickModule() {
 
 void NickModule::onInit() {
     if (!m_drawTextHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::MinecraftUIRenderContextDrawText);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::MinecraftUIRenderContextDrawText);
         if (addr != 0) {
-            bedrocktools::hooks::install((void*)addr, (void*)_drawText_hook, (void**)&_drawText_orig);
+            bedrocktoolsplus::hooks::install((void*)addr, (void*)_drawText_hook, (void**)&_drawText_orig);
             m_drawTextHooked = true;
         }
     }
     
     if (!m_tickHooked) {
-        bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { nickTick(event.player); });
+        bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { nickTick(event.player); });
         m_tickHooked = true;
-        uintptr_t setNameTagAddr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ActorSetNameTag);
+        uintptr_t setNameTagAddr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorSetNameTag);
         if (setNameTagAddr != 0) {
             _setNameTag_orig = (void (*)(void*, std::string*))setNameTagAddr;
         }

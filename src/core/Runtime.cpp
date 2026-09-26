@@ -4,8 +4,8 @@
 #include "launcher/ModuleMenu.hpp"
 #include "modules/ModuleRegistry.hpp"
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include <pl/Input.hpp>
 #include <atomic>
 #include <cstring>
@@ -14,7 +14,7 @@
 #include <mutex>
 #include <unistd.h>
 
-namespace bedrocktools::core {
+namespace bedrocktoolsplus::core {
 namespace {
 std::atomic_bool enabled = false;
 std::atomic_bool resolved = false;
@@ -23,7 +23,7 @@ std::mutex resolveMutex;
 std::mutex installMutex;
 thread_local bool resolvingFromDlopen = false;
 void* (*dlopenOriginal)(const char*, int) = nullptr;
-bedrocktools::hooks::Handle dlopenHook = nullptr;
+bedrocktoolsplus::hooks::Handle dlopenHook = nullptr;
 bool eventsWired = false;
 int containerDepth = 0;
 int chatDepth = 0;
@@ -70,7 +70,7 @@ bool Runtime::resolveSignatures() {
     std::lock_guard lock(resolveMutex);
     if (resolved.load(std::memory_order_acquire)) return true;
     ResolveGuard guard;
-    const bool ok = bedrocktools::memory::resolveAll("libminecraftpe.so");
+    const bool ok = bedrocktoolsplus::memory::resolveAll("libminecraftpe.so");
     resolved.store(ok, std::memory_order_release);
     return ok;
 }
@@ -78,7 +78,7 @@ bool Runtime::resolveSignatures() {
 void Runtime::wireEvents() {
     if (eventsWired) return;
     eventsWired = true;
-    using namespace bedrocktools::events;
+    using namespace bedrocktoolsplus::events;
     bus().subscribe<FrameEvent>([](auto&) { ModuleRegistry::get().onFrame(); });
     bus().subscribe<MouseInputEvent>([](auto& event) {
         if (ModuleRegistry::get().onMouseEvent(event.button, event.down)) event.cancel();
@@ -104,7 +104,7 @@ bool Runtime::install() {
     registerAllModules();
     wireEvents();
     ModuleRegistry::get().initialize();
-    bedrocktools::config::ConfigManager::get().load();
+    bedrocktoolsplus::config::ConfigManager::get().load();
     registerModulesWithLauncher();
     installed.store(true, std::memory_order_release);
     return true;
@@ -117,7 +117,7 @@ void Runtime::minecraftLoaded() {
 
 bool Runtime::load(pl::mod::ModContext& context) {
     mResourceDirectory = context.resourceDir();
-    bedrocktools::config::ConfigManager::get().setConfigPath((context.configDir() / "config.json").string());
+    bedrocktoolsplus::config::ConfigManager::get().setConfigPath((context.configDir() / "config.json").string());
     if (!launcherContext()) return true;
     void* minecraft = dlopen("libminecraftpe.so", RTLD_NOW | RTLD_NOLOAD);
     if (minecraft) {
@@ -125,11 +125,11 @@ bool Runtime::load(pl::mod::ModContext& context) {
         dlclose(minecraft);
         return true;
     }
-    bedrocktools::hooks::LibraryHandle libdl = bedrocktools::hooks::openLibrary("libdl.so");
+    bedrocktoolsplus::hooks::LibraryHandle libdl = bedrocktoolsplus::hooks::openLibrary("libdl.so");
     if (!libdl) return true;
-    void* symbol = reinterpret_cast<void*>(bedrocktools::hooks::symbol(libdl, "dlopen"));
-    if (symbol) dlopenHook = bedrocktools::hooks::install(symbol, reinterpret_cast<void*>(dlopenDetour), reinterpret_cast<void**>(&dlopenOriginal));
-    bedrocktools::hooks::closeLibrary(libdl);
+    void* symbol = reinterpret_cast<void*>(bedrocktoolsplus::hooks::symbol(libdl, "dlopen"));
+    if (symbol) dlopenHook = bedrocktoolsplus::hooks::install(symbol, reinterpret_cast<void*>(dlopenDetour), reinterpret_cast<void**>(&dlopenOriginal));
+    bedrocktoolsplus::hooks::closeLibrary(libdl);
     return true;
 }
 
@@ -148,13 +148,13 @@ bool Runtime::enable(pl::mod::ModContext&) {
 
 bool Runtime::disable(pl::mod::ModContext&) {
     enabled.store(false, std::memory_order_release);
-    bedrocktools::config::ConfigManager::get().flush();
+    bedrocktoolsplus::config::ConfigManager::get().flush();
     return true;
 }
 
 bool Runtime::unload(pl::mod::ModContext&) {
     enabled.store(false, std::memory_order_release);
-    bedrocktools::config::ConfigManager::get().flush();
+    bedrocktoolsplus::config::ConfigManager::get().flush();
     return true;
 }
 

@@ -1,14 +1,14 @@
 #include "compass.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/world/Actor.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/world/Actor.hpp>
 
 #include <cmath>
 #include <cstdio>
 
 static CompassModule* g_compassMod = nullptr;
 
-static void s_compassCallback(bedrocktools::sdk::Player* player) {
+static void s_compassCallback(bedrocktoolsplus::sdk::Player* player) {
     if (!g_compassMod || !g_compassMod->enabled || !player) return;
     const auto rotation = player->rotation();
     g_compassMod->m_pitch = rotation.x;
@@ -25,7 +25,7 @@ CompassModule::~CompassModule() {
 }
 
 void CompassModule::onInit() {
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { s_compassCallback(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_compassCallback(event.player); });
 }
 
 void CompassModule::onEnable() {}

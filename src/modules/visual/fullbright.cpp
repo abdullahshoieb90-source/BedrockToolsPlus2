@@ -1,6 +1,6 @@
 #include "fullbright.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
 #include <cstring>
 
 static constexpr size_t FULLBRIGHT_PATCH_SIZE = 12;
@@ -10,7 +10,7 @@ FullbrightModule::FullbrightModule()
 
 void FullbrightModule::onInit() {
     if (m_patchTarget) return;
-    uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::Fullbright);
+    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::Fullbright);
     if (addr == 0) return;
     m_patchTarget = reinterpret_cast<void*>(addr);
 }
@@ -25,13 +25,13 @@ void FullbrightModule::onEnable() {
     };
 
     memcpy(m_originalBytes, m_patchTarget, FULLBRIGHT_PATCH_SIZE);
-    if (bedrocktools::sdk::patchMemory(m_patchTarget, patch, FULLBRIGHT_PATCH_SIZE))
+    if (bedrocktoolsplus::sdk::patchMemory(m_patchTarget, patch, FULLBRIGHT_PATCH_SIZE))
         m_patched = true;
 }
 
 void FullbrightModule::onDisable() {
     if (!m_patched || !m_patchTarget) return;
-    if (bedrocktools::sdk::patchMemory(m_patchTarget, m_originalBytes, FULLBRIGHT_PATCH_SIZE))
+    if (bedrocktoolsplus::sdk::patchMemory(m_patchTarget, m_originalBytes, FULLBRIGHT_PATCH_SIZE))
         m_patched = false;
 }
 

@@ -1,11 +1,11 @@
 #include "playercoords.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/world/Actor.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/world/Actor.hpp>
 
 static PlayerCoordsModule* g_coordsMod = nullptr;
 
-static void s_coordsCallback(bedrocktools::sdk::Player* player) {
+static void s_coordsCallback(bedrocktoolsplus::sdk::Player* player) {
     if (!g_coordsMod || !g_coordsMod->enabled || !player) return;
     g_coordsMod->updateCoords(player->position());
 }
@@ -32,12 +32,12 @@ PlayerCoordsModule::~PlayerCoordsModule() {
 }
 
 
-void PlayerCoordsModule::updateCoords(const bedrocktools::sdk::Vec3& pos) {
+void PlayerCoordsModule::updateCoords(const bedrocktoolsplus::sdk::Vec3& pos) {
     m_currentPos = pos;
 }
 
 void PlayerCoordsModule::onInit() {
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { s_coordsCallback(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_coordsCallback(event.player); });
 }
 
 void PlayerCoordsModule::onEnable() {

@@ -1,8 +1,8 @@
 #include "reachcounter.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include <cmath>
 #include <iomanip>
 #include <sstream>
@@ -24,14 +24,14 @@ static void onTickHook(void* _this) {
 static bool onAttackHook(void* mode, void* actor, void* a3, void* a4) {
     if (g_reachCounterMod && g_reachCounterMod->enabled) {
         if (g_localPlayerNative) {
-            void* level_ptr = *(void**)((uintptr_t)g_localPlayerNative + bedrocktools::sdk::offsets::Actor::mLevel);
+            void* level_ptr = *(void**)((uintptr_t)g_localPlayerNative + bedrocktoolsplus::sdk::offsets::Actor::mLevel);
             if (level_ptr && getHitResultFn) {
                 void* hit = getHitResultFn(level_ptr);
                 if (hit) {
-                    int mType = *(int*)((uintptr_t)hit + bedrocktools::sdk::offsets::HitResult::mType);
+                    int mType = *(int*)((uintptr_t)hit + bedrocktoolsplus::sdk::offsets::HitResult::mType);
                     if (mType == 0 || mType == 1) { 
-                        bedrocktools::sdk::Vec3 startPos = *(bedrocktools::sdk::Vec3*)((uintptr_t)hit + bedrocktools::sdk::offsets::HitResult::mStartPos);
-                        bedrocktools::sdk::Vec3 pos = *(bedrocktools::sdk::Vec3*)((uintptr_t)hit + bedrocktools::sdk::offsets::HitResult::mPos);
+                        bedrocktoolsplus::sdk::Vec3 startPos = *(bedrocktoolsplus::sdk::Vec3*)((uintptr_t)hit + bedrocktoolsplus::sdk::offsets::HitResult::mStartPos);
+                        bedrocktoolsplus::sdk::Vec3 pos = *(bedrocktoolsplus::sdk::Vec3*)((uintptr_t)hit + bedrocktoolsplus::sdk::offsets::HitResult::mPos);
                         
                         float dx = startPos.x - pos.x;
                         float dy = startPos.y - pos.y;
@@ -74,14 +74,14 @@ void ReachCounterModule::updateReach(float reach) {
 
 void ReachCounterModule::onInit() {
     
-    uintptr_t getHitResultAddr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::LevelGetHitResult);
+    uintptr_t getHitResultAddr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::LevelGetHitResult);
     if (getHitResultAddr) {
         getHitResultFn = reinterpret_cast<LevelGetHitResultFn>(getHitResultAddr);
     }
     
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { onTickHook(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { onTickHook(event.player); });
     
-    bedrocktools::events::bus().subscribe<bedrocktools::events::AttackEvent>([](auto& event) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::AttackEvent>([](auto& event) {
         if (!onAttackHook(event.gameMode, event.target, event.argument2, event.argument3)) event.cancel();
     });
 }

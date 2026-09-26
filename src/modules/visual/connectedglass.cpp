@@ -1,11 +1,11 @@
 #include "connectedglass.hpp"
 
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/sdk/render/Block.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/render/Block.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
 
 #include <algorithm>
 #include <array>
@@ -19,7 +19,7 @@
 
 namespace {
 
-using bedrocktools::sdk::field;
+using bedrocktoolsplus::sdk::field;
 
 enum class GlassFace : uint8_t { Down = 0, Up, North, South, West, East };
 enum class TextureEdge : uint8_t { U0, U1, V0, V1 };
@@ -86,15 +86,15 @@ std::atomic_bool g_affectBottomFace{true};
 std::atomic<float> g_borderWidth{2.0f};
 
 struct FaceHook {
-    bedrocktools::hooks::Handle handle = nullptr;
+    bedrocktoolsplus::hooks::Handle handle = nullptr;
     FaceFn original = nullptr;
 };
 FaceHook g_faceHooks[6] = {};
 
-bedrocktools::hooks::Handle g_paneTessHook = nullptr;
-bedrocktools::hooks::Handle g_bgGetTextureHook = nullptr;
-bedrocktools::hooks::Handle g_tessVertexHook = nullptr;
-bedrocktools::hooks::Handle g_boUpdateRenderFaceHook = nullptr;
+bedrocktoolsplus::hooks::Handle g_paneTessHook = nullptr;
+bedrocktoolsplus::hooks::Handle g_bgGetTextureHook = nullptr;
+bedrocktoolsplus::hooks::Handle g_tessVertexHook = nullptr;
+bedrocktoolsplus::hooks::Handle g_boUpdateRenderFaceHook = nullptr;
 
 PaneTessFn g_paneTessOriginal = nullptr;
 BgGetTextureFn g_bgGetTextureOriginal = nullptr;
@@ -135,7 +135,7 @@ GlassInfo classifyGlassName(std::string_view rawName, const void* identity = nul
 
 GlassInfo classifyGlass(const void* block) {
     if (!block) return {};
-    const auto* blockObj = static_cast<const bedrocktools::sdk::Block*>(block);
+    const auto* blockObj = static_cast<const bedrocktoolsplus::sdk::Block*>(block);
     const std::string* fullName = blockObj->fullName();
     if (!fullName || fullName->size() > 256
         || (!fullName->empty() && fullName->data() == nullptr)) return {};
@@ -287,16 +287,16 @@ public:
     void* data() { return m_storage.data(); }
 
 private:
-    alignas(bedrocktools::sdk::offsets::TextureUVCoordinateSet::Alignment)
-        std::array<std::byte, bedrocktools::sdk::offsets::TextureUVCoordinateSet::Size> m_storage{};
+    alignas(bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::Alignment)
+        std::array<std::byte, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::Size> m_storage{};
     bool m_constructed = false;
 };
 
 void cropTexture(void* texture, const CropEdges& edges) {
-    float& u0 = field<float>(texture, bedrocktools::sdk::offsets::TextureUVCoordinateSet::mU0);
-    float& v0 = field<float>(texture, bedrocktools::sdk::offsets::TextureUVCoordinateSet::mV0);
-    float& u1 = field<float>(texture, bedrocktools::sdk::offsets::TextureUVCoordinateSet::mU1);
-    float& v1 = field<float>(texture, bedrocktools::sdk::offsets::TextureUVCoordinateSet::mV1);
+    float& u0 = field<float>(texture, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mU0);
+    float& v0 = field<float>(texture, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mV0);
+    float& u1 = field<float>(texture, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mU1);
+    float& v1 = field<float>(texture, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mV1);
 
     const float borderPixels = std::clamp(g_borderWidth.load(std::memory_order_relaxed), 0.0f, 7.5f);
     if (borderPixels <= 0.0f) return;
@@ -312,8 +312,8 @@ void cropTexture(void* texture, const CropEdges& edges) {
 
     field<uint8_t>(
         texture,
-        bedrocktools::sdk::offsets::TextureUVCoordinateSet::mIsotropicFaceData
-            + bedrocktools::sdk::offsets::IsotropicFaceData::mTextureIsotropic
+        bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mIsotropicFaceData
+            + bedrocktoolsplus::sdk::offsets::IsotropicFaceData::mTextureIsotropic
     ) = 0;
 }
 
@@ -322,12 +322,12 @@ public:
     FaceStateGuard(void* tessellator, GlassFace face)
         : m_flip(&field<uint8_t>(
               tessellator,
-              bedrocktools::sdk::offsets::BlockTessellator::mFlipFace
-                  + static_cast<size_t>(face) * bedrocktools::sdk::offsets::FlipFace::ElementSize
+              bedrocktoolsplus::sdk::offsets::BlockTessellator::mFlipFace
+                  + static_cast<size_t>(face) * bedrocktoolsplus::sdk::offsets::FlipFace::ElementSize
           )),
-          m_xFlip(&field<uint8_t>(tessellator, bedrocktools::sdk::offsets::BlockTessellator::mXFlipTexture)),
+          m_xFlip(&field<uint8_t>(tessellator, bedrocktoolsplus::sdk::offsets::BlockTessellator::mXFlipTexture)),
           m_oldFlip(*m_flip), m_oldXFlip(*m_xFlip) {
-        *m_flip = bedrocktools::sdk::offsets::FlipFace::DontRotate;
+        *m_flip = bedrocktoolsplus::sdk::offsets::FlipFace::DontRotate;
         *m_xFlip = 0;
     }
     ~FaceStateGuard() { *m_flip = m_oldFlip; *m_xFlip = m_oldXFlip; }
@@ -356,11 +356,11 @@ void renderFace(
         const GlassInfo current = classifyGlass(block);
         if (!current.valid() || !shapeEnabled(current)) break;
         const void* internalTexture = reinterpret_cast<const void*>(
-            reinterpret_cast<uintptr_t>(tessellator) + bedrocktools::sdk::offsets::BlockTessellator::mInternalTexture
+            reinterpret_cast<uintptr_t>(tessellator) + bedrocktoolsplus::sdk::offsets::BlockTessellator::mInternalTexture
         );
-        if (field<uint8_t>(tessellator, bedrocktools::sdk::offsets::BlockTessellator::mUseInternalTexture) != 0
+        if (field<uint8_t>(tessellator, bedrocktoolsplus::sdk::offsets::BlockTessellator::mUseInternalTexture) != 0
             && inputTexture == internalTexture) break;
-        void* region = field<void*>(tessellator, bedrocktools::sdk::offsets::BlockTessellator::mRegion);
+        void* region = field<void*>(tessellator, bedrocktoolsplus::sdk::offsets::BlockTessellator::mRegion);
         if (!region) break;
         const BlockPosRaw pos = {
             static_cast<int32_t>(std::floor(position->x)),
@@ -389,13 +389,13 @@ void faceHookTrampoline(void* a0, void* a1, const void* a2, const Vec3Raw* a3, c
     renderFace(g_faceHooks[static_cast<size_t>(Face)].original, Face, a0, a1, a2, a3, a4);
 }
 
-constexpr std::array<bedrocktools::memory::SignatureId, 6> kFaceSigIds = {
-    bedrocktools::memory::SignatureId::BlockTessellatorTessellateFaceDown,
-    bedrocktools::memory::SignatureId::BlockTessellatorTessellateFaceUp,
-    bedrocktools::memory::SignatureId::BlockTessellatorTessellateFaceNorth,
-    bedrocktools::memory::SignatureId::BlockTessellatorTessellateFaceSouth,
-    bedrocktools::memory::SignatureId::BlockTessellatorTessellateFaceWest,
-    bedrocktools::memory::SignatureId::BlockTessellatorTessellateFaceEast,
+constexpr std::array<bedrocktoolsplus::memory::SignatureId, 6> kFaceSigIds = {
+    bedrocktoolsplus::memory::SignatureId::BlockTessellatorTessellateFaceDown,
+    bedrocktoolsplus::memory::SignatureId::BlockTessellatorTessellateFaceUp,
+    bedrocktoolsplus::memory::SignatureId::BlockTessellatorTessellateFaceNorth,
+    bedrocktoolsplus::memory::SignatureId::BlockTessellatorTessellateFaceSouth,
+    bedrocktoolsplus::memory::SignatureId::BlockTessellatorTessellateFaceWest,
+    bedrocktoolsplus::memory::SignatureId::BlockTessellatorTessellateFaceEast,
 };
 
 constexpr std::array<FaceFn, 6> kFaceTrampolines = {
@@ -422,7 +422,7 @@ bool paneTessDetour(void* tess, void* meshtess, const void* block, const BlockPo
 
     const PaneRenderContext saved = g_paneRc;
     if (shouldIntercept) {
-        void* region = field<void*>(tess, bedrocktools::sdk::offsets::BlockTessellator::mRegion);
+        void* region = field<void*>(tess, bedrocktoolsplus::sdk::offsets::BlockTessellator::mRegion);
         const GlassInfo current = classifyGlass(block);
         g_paneRc = {
             true, meshtess, *pos,
@@ -443,10 +443,10 @@ const void* bgGetTextureDetour(void* bgThis, const BlockPosRaw* pos, size_t face
     if (!g_paneRc.active || !result) return result;
     if (faceIdx == 0 && !g_paneRc.haveSource) {
         g_paneRc.source = {
-            field<float>(result, bedrocktools::sdk::offsets::TextureUVCoordinateSet::mU0),
-            field<float>(result, bedrocktools::sdk::offsets::TextureUVCoordinateSet::mV0),
-            field<float>(result, bedrocktools::sdk::offsets::TextureUVCoordinateSet::mU1),
-            field<float>(result, bedrocktools::sdk::offsets::TextureUVCoordinateSet::mV1),
+            field<float>(result, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mU0),
+            field<float>(result, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mV0),
+            field<float>(result, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mU1),
+            field<float>(result, bedrocktoolsplus::sdk::offsets::TextureUVCoordinateSet::mV1),
         };
         g_paneRc.haveSource = true;
     }
@@ -456,8 +456,8 @@ const void* bgGetTextureDetour(void* bgThis, const BlockPosRaw* pos, size_t face
 void tessVertexDetour(void* tess, float x, [[maybe_unused]] float y, float z) {
     if (!g_tessVertexOriginal) return;
     if (g_paneRc.active && g_paneRc.haveSource && g_paneRc.tess == tess) {
-        float& u = field<float>(tess, bedrocktools::sdk::offsets::Tessellator::mTextureU);
-        float& v = field<float>(tess, bedrocktools::sdk::offsets::Tessellator::mTextureV);
+        float& u = field<float>(tess, bedrocktoolsplus::sdk::offsets::Tessellator::mTextureU);
+        float& v = field<float>(tess, bedrocktoolsplus::sdk::offsets::Tessellator::mTextureV);
         const UvBounds& src = g_paneRc.source;
         if (inUvRange(u, src.u0, src.u1) && inUvRange(v, src.v0, src.v1)) {
             const float dx = std::abs(x - (static_cast<float>(g_paneRc.pos.x) + 0.5f));
@@ -496,29 +496,29 @@ uint64_t boUpdateRenderFaceDetour(
 }
 
 template <typename Fn>
-bedrocktools::hooks::Handle installHook(bedrocktools::memory::SignatureId id, void* detour, Fn* original) {
-    const uintptr_t address = bedrocktools::memory::resolve(id);
+bedrocktoolsplus::hooks::Handle installHook(bedrocktoolsplus::memory::SignatureId id, void* detour, Fn* original) {
+    const uintptr_t address = bedrocktoolsplus::memory::resolve(id);
     if (!address) return nullptr;
-    return bedrocktools::hooks::install(reinterpret_cast<void*>(address), detour, reinterpret_cast<void**>(original));
+    return bedrocktoolsplus::hooks::install(reinterpret_cast<void*>(address), detour, reinterpret_cast<void**>(original));
 }
 
 bool rebuildRenderChunks(void* clientInstance) {
     if (!clientInstance || !g_setAllDirty) return false;
 
-    void* levelRenderer = field<void*>(clientInstance, bedrocktools::sdk::offsets::ClientInstance::mLevelRenderer);
+    void* levelRenderer = field<void*>(clientInstance, bedrocktoolsplus::sdk::offsets::ClientInstance::mLevelRenderer);
     if (!levelRenderer) return false;
 
     void* node = field<void*>(
         levelRenderer,
-        bedrocktools::sdk::offsets::LevelRenderer::mRenderChunkCoordinators
-            + bedrocktools::sdk::offsets::HashTable::mFirstNode
+        bedrocktoolsplus::sdk::offsets::LevelRenderer::mRenderChunkCoordinators
+            + bedrocktoolsplus::sdk::offsets::HashTable::mFirstNode
     );
 
     bool rebuilt = false;
     size_t visited = 0;
-    while (node && visited++ < bedrocktools::sdk::offsets::RenderChunkCoordinator::MaxNodes) {
-        void* next = field<void*>(node, bedrocktools::sdk::offsets::HashNode::mNext);
-        void* coordinator = field<void*>(node, bedrocktools::sdk::offsets::HashNode::mValuePointer);
+    while (node && visited++ < bedrocktoolsplus::sdk::offsets::RenderChunkCoordinator::MaxNodes) {
+        void* next = field<void*>(node, bedrocktoolsplus::sdk::offsets::HashNode::mNext);
+        void* coordinator = field<void*>(node, bedrocktoolsplus::sdk::offsets::HashNode::mValuePointer);
         if (coordinator) {
             g_setAllDirty(coordinator, true, false);
             rebuilt = true;
@@ -568,11 +568,11 @@ void ConnectedGlassModule::applySettings() {
 void ConnectedGlassModule::installHooks() {
     if (m_hooked) return;
 
-    g_getBlock = reinterpret_cast<BlockSourceGetBlockFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BlockSourceGetBlockForTessellation));
-    g_isSolidBlockingBlock = reinterpret_cast<BlockSourceIsSolidBlockingBlockFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BlockSourceIsSolidBlockingBlock));
-    g_textureCopyCtor = reinterpret_cast<TextureUVCopyCtorFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::TextureUVCoordinateSetCopyCtor));
-    g_textureDtor = reinterpret_cast<TextureUVDtorFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::TextureUVCoordinateSetDtor));
-    g_setAllDirty = reinterpret_cast<SetAllDirtyFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::RenderChunkCoordinatorSetAllDirty));
+    g_getBlock = reinterpret_cast<BlockSourceGetBlockFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BlockSourceGetBlockForTessellation));
+    g_isSolidBlockingBlock = reinterpret_cast<BlockSourceIsSolidBlockingBlockFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BlockSourceIsSolidBlockingBlock));
+    g_textureCopyCtor = reinterpret_cast<TextureUVCopyCtorFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TextureUVCoordinateSetCopyCtor));
+    g_textureDtor = reinterpret_cast<TextureUVDtorFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TextureUVCoordinateSetDtor));
+    g_setAllDirty = reinterpret_cast<SetAllDirtyFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderChunkCoordinatorSetAllDirty));
 
     for (size_t i = 0; i < 6; ++i) {
         if (!g_faceHooks[i].handle) {
@@ -586,22 +586,22 @@ void ConnectedGlassModule::installHooks() {
 
     if (!g_paneTessHook) {
         g_paneTessHook = installHook(
-            bedrocktools::memory::SignatureId::BlockTessellatorTessellateDoubleThinFenceInWorld,
+            bedrocktoolsplus::memory::SignatureId::BlockTessellatorTessellateDoubleThinFenceInWorld,
             reinterpret_cast<void*>(paneTessDetour), &g_paneTessOriginal);
     }
     if (!g_bgGetTextureHook) {
         g_bgGetTextureHook = installHook(
-            bedrocktools::memory::SignatureId::BlockGraphicsGetTexture,
+            bedrocktoolsplus::memory::SignatureId::BlockGraphicsGetTexture,
             reinterpret_cast<void*>(bgGetTextureDetour), &g_bgGetTextureOriginal);
     }
     if (!g_tessVertexHook) {
         g_tessVertexHook = installHook(
-            bedrocktools::memory::SignatureId::TessellatorVertex,
+            bedrocktoolsplus::memory::SignatureId::TessellatorVertex,
             reinterpret_cast<void*>(tessVertexDetour), &g_tessVertexOriginal);
     }
     if (!g_boUpdateRenderFaceHook) {
         g_boUpdateRenderFaceHook = installHook(
-            bedrocktools::memory::SignatureId::BlockOccluderUpdateRenderFace,
+            bedrocktoolsplus::memory::SignatureId::BlockOccluderUpdateRenderFace,
             reinterpret_cast<void*>(boUpdateRenderFaceDetour), &g_boUpdateRenderFaceOriginal);
     }
 
@@ -613,7 +613,7 @@ void ConnectedGlassModule::installHooks() {
 void ConnectedGlassModule::onInit() {
     applySettings();
     installHooks();
-    bedrocktools::events::bus().subscribe<bedrocktools::events::ClientInstanceUpdateEvent>([](auto& event) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::ClientInstanceUpdateEvent>([](auto& event) {
         ConnectedGlassHandleClientInstanceUpdate(event.clientInstance);
     });
 }

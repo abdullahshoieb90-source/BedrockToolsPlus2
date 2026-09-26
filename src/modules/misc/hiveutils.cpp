@@ -2,8 +2,8 @@
 #include "hivemaps.hpp"
 #include "core/GameHooks.hpp"
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 #include <pl/Platform.hpp>
 #include <pl/ModMenuConfig.hpp>
 #include <algorithm>
@@ -25,7 +25,7 @@ HiveUtilsModule* HiveUtilsModule::instance = nullptr;
 
 namespace {
 
-using namespace bedrocktools;
+using namespace bedrocktoolsplus;
 
 using SendToServerFn = void* (*)(void*, void*);
 using GetPacketSenderFn = void* (*)(void*);
@@ -507,7 +507,7 @@ std::string normalizeVariant(std::string value) {
 }
 
 std::string mapRuleKey(std::string_view game, std::string_view variant) {
-    std::string base = upper(bedrocktools::hive::apiGameId(game));
+    std::string base = upper(bedrocktoolsplus::hive::apiGameId(game));
     std::string normalized = normalizeVariant(std::string(variant));
     if (normalized == "REGULAR") return base;
     return base + "-" + normalized;
@@ -633,7 +633,7 @@ bool menuTruthy(std::string_view value) {
     return normalized == "true" || normalized == "1" || normalized == "on" || normalized == "yes";
 }
 
-std::string mapStatusText(const bedrocktools::hive::MapSnapshot& snapshot) {
+std::string mapStatusText(const bedrocktoolsplus::hive::MapSnapshot& snapshot) {
     if (snapshot.loading) return snapshot.maps.empty() ? "Loading maps from Hive..." : "Refreshing maps from Hive...";
     if (!snapshot.error.empty()) {
         if (!snapshot.maps.empty()) return snapshot.error + ". Showing cached maps.";
@@ -652,7 +652,7 @@ std::vector<pl::modmenu::ConfigOptionV2> gameOptions() {
 }
 
 std::vector<pl::modmenu::ConfigOptionV2> variantOptions(std::string_view game, std::string_view selected) {
-    std::vector<std::string> variants = bedrocktools::hive::variantsForGame(game);
+    std::vector<std::string> variants = bedrocktoolsplus::hive::variantsForGame(game);
     const std::string wanted = normalizeVariant(std::string(selected));
     if (variants.empty()) variants.push_back(wanted);
     bool found = false;
@@ -670,7 +670,7 @@ std::vector<pl::modmenu::ConfigOptionV2> variantOptions(std::string_view game, s
 }
 
 std::vector<pl::modmenu::ConfigOptionV2> mapOptions(
-    const std::vector<bedrocktools::hive::MapInfo>& available,
+    const std::vector<bedrocktoolsplus::hive::MapInfo>& available,
     const std::vector<std::string>& selected) {
     std::vector<pl::modmenu::ConfigOptionV2> result;
     std::set<std::string> present;
@@ -743,7 +743,7 @@ bool HiveUtilsModule::onMenuConfigChanged(std::string_view key, std::string_view
     {
         std::lock_guard lock(mMapConfigMutex);
         if (key == "uiMapVoteGame") {
-            uiMapVoteGame = bedrocktools::hive::apiGameId(value);
+            uiMapVoteGame = bedrocktoolsplus::hive::apiGameId(value);
             if (uiMapVoteGame.empty()) uiMapVoteGame = "bed";
             uiMapVoteVariant = "REGULAR";
             republish = true;
@@ -752,7 +752,7 @@ bool HiveUtilsModule::onMenuConfigChanged(std::string_view key, std::string_view
             uiMapVoteVariant = normalizeVariant(std::string(value));
             republish = true;
         } else if (key == "uiMapAvoidGame") {
-            uiMapAvoidGame = bedrocktools::hive::apiGameId(value);
+            uiMapAvoidGame = bedrocktoolsplus::hive::apiGameId(value);
             if (uiMapAvoidGame.empty()) uiMapAvoidGame = "bed";
             uiMapAvoidVariant = "REGULAR";
             republish = true;
@@ -778,7 +778,7 @@ bool HiveUtilsModule::onMenuConfigChanged(std::string_view key, std::string_view
             forceRefresh = refreshAvoid;
         } else if (key == "clearHiveMapCache") {
             if (menuTruthy(value)) {
-                bedrocktools::hive::clearMapCache();
+                bedrocktoolsplus::hive::clearMapCache();
                 refreshVote = true;
                 refreshAvoid = true;
                 forceRefresh = true;
@@ -833,7 +833,7 @@ void HiveUtilsModule::refreshMapData(bool vote, bool force) {
         game = vote ? uiMapVoteGame : uiMapAvoidGame;
     }
     HiveUtilsModule* expected = this;
-    bedrocktools::hive::refreshMapsAsync(game, force, [expected]() {
+    bedrocktoolsplus::hive::refreshMapsAsync(game, force, [expected]() {
         HiveUtilsModule* current = HiveUtilsModule::instance;
         if (current == expected && current && current->mMenuRegistered.load()) current->publishMenuSchema();
     });
@@ -868,10 +868,10 @@ void HiveUtilsModule::publishMenuSchema() {
     const std::string avoidKey = mapRuleKey(avoidGame, avoidVariant);
     const auto selectedVoteMaps = jsonStringList(votePreferences, voteKey);
     const auto selectedAvoidMaps = jsonStringList(avoidPreferences, avoidKey);
-    const auto voteSnapshot = bedrocktools::hive::mapSnapshot(voteGame);
-    const auto avoidSnapshot = bedrocktools::hive::mapSnapshot(avoidGame);
-    const auto voteMaps = bedrocktools::hive::mapsForVariant(voteGame, voteVariant);
-    const auto avoidMaps = bedrocktools::hive::mapsForVariant(avoidGame, avoidVariant);
+    const auto voteSnapshot = bedrocktoolsplus::hive::mapSnapshot(voteGame);
+    const auto avoidSnapshot = bedrocktoolsplus::hive::mapSnapshot(avoidGame);
+    const auto voteMaps = bedrocktoolsplus::hive::mapsForVariant(voteGame, voteVariant);
+    const auto avoidMaps = bedrocktoolsplus::hive::mapsForVariant(avoidGame, avoidVariant);
 
     using namespace pl::modmenu;
     ConfigSchemaBuilder schema;
@@ -1324,8 +1324,8 @@ void HiveUtilsModule::loadConfig(const nlohmann::json& j) {
     if (j.contains("teamElimination") && j["teamElimination"].is_boolean()) autoRequeueTeamElimination = j["teamElimination"].get<bool>();
     if (j.contains("gameOver") && j["gameOver"].is_boolean()) autoRequeueGameOver = j["gameOver"].get<bool>();
     deathCountLimit = std::max(1, deathCountLimit);
-    loadedVoteGame = bedrocktools::hive::apiGameId(loadedVoteGame);
-    loadedAvoidGame = bedrocktools::hive::apiGameId(loadedAvoidGame);
+    loadedVoteGame = bedrocktoolsplus::hive::apiGameId(loadedVoteGame);
+    loadedAvoidGame = bedrocktoolsplus::hive::apiGameId(loadedAvoidGame);
     if (loadedVoteGame.empty()) loadedVoteGame = "bed";
     if (loadedAvoidGame.empty()) loadedAvoidGame = "bed";
     loadedVoteVariant = normalizeVariant(std::move(loadedVoteVariant));

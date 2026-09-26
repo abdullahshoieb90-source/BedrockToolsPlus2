@@ -17,7 +17,7 @@ public:
     bool hideInHudEditor = false;
     int keybind = 0;
 
-    Module(const char* n, const char* d) : name(n), description(d), moduleId(std::string("bedrocktools.") + n) {}
+    Module(const char* n, const char* d) : name(n), description(d), moduleId(std::string("bedrocktoolsplus.") + n) {}
     virtual ~Module() = default;
 
     virtual void onInit()     {}

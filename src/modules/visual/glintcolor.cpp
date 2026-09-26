@@ -1,10 +1,10 @@
 #include "glintcolor.hpp"
 
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/sdk/Types.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/Types.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -12,7 +12,7 @@
 
 namespace {
 
-using Color = bedrocktools::sdk::Color;
+using Color = bedrocktoolsplus::sdk::Color;
 
 using SetEntityConstantsFn = void (*)(
     void*,
@@ -95,28 +95,28 @@ Color makeGlintColor() {
 void applyScreenGlintColor(void* screenContext) {
     if (!screenContext || !g_glintColor || !g_glintColor->enabled) return;
 
-    using namespace bedrocktools::sdk::offsets;
+    using namespace bedrocktoolsplus::sdk::offsets;
 
-    const auto constants = bedrocktools::sdk::field<std::uintptr_t>(
+    const auto constants = bedrocktoolsplus::sdk::field<std::uintptr_t>(
         screenContext,
         ScreenContext::mActorShaderConstants
     );
     if (!constants) return;
 
-    const auto glintConstant = bedrocktools::sdk::field<std::uintptr_t>(
+    const auto glintConstant = bedrocktoolsplus::sdk::field<std::uintptr_t>(
         reinterpret_cast<void*>(constants),
         ActorShaderConstants::mGlintColor
     );
     if (!glintConstant) return;
 
-    const auto data = bedrocktools::sdk::field<std::uintptr_t>(
+    const auto data = bedrocktoolsplus::sdk::field<std::uintptr_t>(
         reinterpret_cast<void*>(glintConstant),
         ShaderConstant::mData
     );
     if (!data) return;
 
     *reinterpret_cast<Color*>(data) = makeGlintColor();
-    bedrocktools::sdk::field<std::uint8_t>(
+    bedrocktoolsplus::sdk::field<std::uint8_t>(
         reinterpret_cast<void*>(glintConstant),
         ShaderConstant::mDirty
     ) = 1;
@@ -320,17 +320,17 @@ GlintColorModule::~GlintColorModule() {
 }
 
 void GlintColorModule::onInit() {
-    const auto entityAddress = bedrocktools::memory::resolve(
-        bedrocktools::memory::SignatureId::ActorShaderManagerSetEntityConstants
+    const auto entityAddress = bedrocktoolsplus::memory::resolve(
+        bedrocktoolsplus::memory::SignatureId::ActorShaderManagerSetEntityConstants
     );
-    const auto actorGlintAddress = bedrocktools::memory::resolve(
-        bedrocktools::memory::SignatureId::ActorShaderManagerSetupShaderParametersActorGlint
+    const auto actorGlintAddress = bedrocktoolsplus::memory::resolve(
+        bedrocktoolsplus::memory::SignatureId::ActorShaderManagerSetupShaderParametersActorGlint
     );
-    const auto foilAddress = bedrocktools::memory::resolve(
-        bedrocktools::memory::SignatureId::ActorShaderManagerSetupFoilShaderParameters
+    const auto foilAddress = bedrocktoolsplus::memory::resolve(
+        bedrocktoolsplus::memory::SignatureId::ActorShaderManagerSetupFoilShaderParameters
     );
-    const auto uiAddress = bedrocktools::memory::resolve(
-        bedrocktools::memory::SignatureId::ActorShaderManagerSetupShaderParametersGlint
+    const auto uiAddress = bedrocktoolsplus::memory::resolve(
+        bedrocktoolsplus::memory::SignatureId::ActorShaderManagerSetupShaderParametersGlint
     );
 
     m_entityTarget = reinterpret_cast<void*>(entityAddress);
@@ -342,7 +342,7 @@ void GlintColorModule::onInit() {
 
 void GlintColorModule::installHooks() {
     if (!m_entityHooked && m_entityTarget) {
-        const auto hook = bedrocktools::hooks::install(
+        const auto hook = bedrocktoolsplus::hooks::install(
             m_entityTarget,
             reinterpret_cast<void*>(&setEntityConstantsHook),
             reinterpret_cast<void**>(&g_setEntityConstantsOriginal)
@@ -351,7 +351,7 @@ void GlintColorModule::installHooks() {
     }
 
     if (!m_actorGlintHooked && m_actorGlintTarget) {
-        const auto hook = bedrocktools::hooks::install(
+        const auto hook = bedrocktoolsplus::hooks::install(
             m_actorGlintTarget,
             reinterpret_cast<void*>(&setupActorShaderParametersGlintHook),
             reinterpret_cast<void**>(&g_setupActorShaderParametersGlintOriginal)
@@ -360,7 +360,7 @@ void GlintColorModule::installHooks() {
     }
 
     if (!m_foilHooked && m_foilTarget) {
-        const auto hook = bedrocktools::hooks::install(
+        const auto hook = bedrocktoolsplus::hooks::install(
             m_foilTarget,
             reinterpret_cast<void*>(&setupFoilShaderParametersHook),
             reinterpret_cast<void**>(&g_setupFoilShaderParametersOriginal)
@@ -369,7 +369,7 @@ void GlintColorModule::installHooks() {
     }
 
     if (!m_uiHooked && m_uiTarget) {
-        const auto hook = bedrocktools::hooks::install(
+        const auto hook = bedrocktoolsplus::hooks::install(
             m_uiTarget,
             reinterpret_cast<void*>(&setupShaderParametersGlintHook),
             reinterpret_cast<void**>(&g_setupShaderParametersGlintOriginal)

@@ -1,9 +1,9 @@
 #include "lightoverlay.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 #include <cmath>
 #include <string>
 #include <cstring>
@@ -119,15 +119,15 @@ static uintptr_t    s_renderMaterialGroup = 0;
 
 static void (*_renderLevel_orig)(void* _this, void* screenContext, void* a3);
 
-static bedrocktools::sdk::Vec3 g_playerPos = {0.f, 0.f, 0.f};
+static bedrocktoolsplus::sdk::Vec3 g_playerPos = {0.f, 0.f, 0.f};
 static void* g_localPlayer = nullptr;
 
 static void s_lightOverlayTickCallback(void* _this) {
     if (!g_lightOverlayMod || !g_lightOverlayMod->enabled) return;
     g_localPlayer = _this;
-    uintptr_t svc = *(uintptr_t*)((uintptr_t)_this + bedrocktools::sdk::offsets::Actor::mStateVectorComponent);
+    uintptr_t svc = *(uintptr_t*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Actor::mStateVectorComponent);
     if (svc != 0) {
-        g_playerPos = *(bedrocktools::sdk::Vec3*)svc;
+        g_playerPos = *(bedrocktoolsplus::sdk::Vec3*)svc;
     }
 }
 
@@ -135,9 +135,9 @@ static MaterialPtr getMaterial(const char* name) {
     if (!s_renderMaterialGroup) return {};
     HashedString hs(name);
     void** vtable = *reinterpret_cast<void***>(s_renderMaterialGroup);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::RenderMaterialGroup_getMaterial]) return {};
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::RenderMaterialGroup_getMaterial]) return {};
     using getMat_t = MaterialPtr(*)(void*, const HashedString*);
-    return reinterpret_cast<getMat_t>(vtable[bedrocktools::sdk::offsets::VTable::RenderMaterialGroup_getMaterial])((void*)s_renderMaterialGroup, &hs);
+    return reinterpret_cast<getMat_t>(vtable[bedrocktoolsplus::sdk::offsets::VTable::RenderMaterialGroup_getMaterial])((void*)s_renderMaterialGroup, &hs);
 }
 
 static void ensureMaterials() {
@@ -146,12 +146,12 @@ static void ensureMaterials() {
     if (!s_matSelection) s_matSelection = getMaterial("selection_box");
 }
 
-static void drawDigit(void* tessellator, int digit, bedrocktools::sdk::Vec3 center, bedrocktools::sdk::Vec3 right, bedrocktools::sdk::Vec3 up, float scale) {
+static void drawDigit(void* tessellator, int digit, bedrocktoolsplus::sdk::Vec3 center, bedrocktoolsplus::sdk::Vec3 right, bedrocktoolsplus::sdk::Vec3 up, float scale) {
     auto emitLine = [&](float x1, float y1, float x2, float y2) {
-        bedrocktools::sdk::Vec3 p1 = {center.x + (right.x * x1 * scale) + (up.x * y1 * scale),
+        bedrocktoolsplus::sdk::Vec3 p1 = {center.x + (right.x * x1 * scale) + (up.x * y1 * scale),
                    center.y + (right.y * x1 * scale) + (up.y * y1 * scale),
                    center.z + (right.z * x1 * scale) + (up.z * y1 * scale)};
-        bedrocktools::sdk::Vec3 p2 = {center.x + (right.x * x2 * scale) + (up.x * y2 * scale),
+        bedrocktoolsplus::sdk::Vec3 p2 = {center.x + (right.x * x2 * scale) + (up.x * y2 * scale),
                    center.y + (right.y * x2 * scale) + (up.y * y2 * scale),
                    center.z + (right.z * x2 * scale) + (up.z * y2 * scale)};
         s_tessVertex(tessellator, p1.x, p1.y, p1.z);
@@ -227,7 +227,7 @@ static void drawDigit(void* tessellator, int digit, bedrocktools::sdk::Vec3 cent
     }
 }
 
-static void drawNumber(void* tessellator, int number, bedrocktools::sdk::Vec3 center, bedrocktools::sdk::Vec3 right, bedrocktools::sdk::Vec3 up, float scale) {
+static void drawNumber(void* tessellator, int number, bedrocktoolsplus::sdk::Vec3 center, bedrocktoolsplus::sdk::Vec3 right, bedrocktoolsplus::sdk::Vec3 up, float scale) {
     if (number < 0) number = 0;
     if (number > 99) number = 99;
 
@@ -236,8 +236,8 @@ static void drawNumber(void* tessellator, int number, bedrocktools::sdk::Vec3 ce
     } else {
         int tens = number / 10;
         int ones = number % 10;
-        bedrocktools::sdk::Vec3 offsetLeft = {center.x - right.x * 0.45f * scale, center.y - right.y * 0.45f * scale, center.z - right.z * 0.45f * scale};
-        bedrocktools::sdk::Vec3 offsetRight = {center.x + right.x * 0.45f * scale, center.y + right.y * 0.45f * scale, center.z + right.z * 0.45f * scale};
+        bedrocktoolsplus::sdk::Vec3 offsetLeft = {center.x - right.x * 0.45f * scale, center.y - right.y * 0.45f * scale, center.z - right.z * 0.45f * scale};
+        bedrocktoolsplus::sdk::Vec3 offsetRight = {center.x + right.x * 0.45f * scale, center.y + right.y * 0.45f * scale, center.z + right.z * 0.45f * scale};
         drawDigit(tessellator, tens, offsetLeft, right, up, scale);
         drawDigit(tessellator, ones, offsetRight, right, up, scale);
     }
@@ -256,29 +256,29 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
     } else if (!s_getBrightness || !s_isSolidBlockingBlock) {
         
     } else {
-        uintptr_t tessellatorPtr = *(uintptr_t*)((uintptr_t)screenContext + bedrocktools::sdk::offsets::ScreenContext::mTessellator);
+        uintptr_t tessellatorPtr = *(uintptr_t*)((uintptr_t)screenContext + bedrocktoolsplus::sdk::offsets::ScreenContext::mTessellator);
         if (tessellatorPtr && tessellatorPtr >= 0x1000) {
             void* tessellator = (void*)tessellatorPtr;
 
-            uintptr_t lrpPtr = *(uintptr_t*)((uintptr_t)_this + bedrocktools::sdk::offsets::LevelRenderer::mLevelRendererPlayer);
+            uintptr_t lrpPtr = *(uintptr_t*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::LevelRenderer::mLevelRendererPlayer);
             if (lrpPtr && lrpPtr >= 0x1000) {
-                float camX = *(float*)(lrpPtr + bedrocktools::sdk::offsets::LevelRendererPlayer::mCamPos);
-                float camY = *(float*)(lrpPtr + bedrocktools::sdk::offsets::LevelRendererPlayer::mCamPos + 4);
-                float camZ = *(float*)(lrpPtr + bedrocktools::sdk::offsets::LevelRendererPlayer::mCamPos + 8);
+                float camX = *(float*)(lrpPtr + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mCamPos);
+                float camY = *(float*)(lrpPtr + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mCamPos + 4);
+                float camZ = *(float*)(lrpPtr + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mCamPos + 8);
 
                 ensureMaterials();
 
-                void* matOutline = s_matSelection ? (void*)&s_matSelection : (void*)(lrpPtr + bedrocktools::sdk::offsets::LevelRendererPlayer::mSelectionOverlayMaterial);
+                void* matOutline = s_matSelection ? (void*)&s_matSelection : (void*)(lrpPtr + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mSelectionOverlayMaterial);
                 
-                uintptr_t colorHolderPtr = *(uintptr_t*)((uintptr_t)screenContext + bedrocktools::sdk::offsets::ScreenContext::mColorHolder);
+                uintptr_t colorHolderPtr = *(uintptr_t*)((uintptr_t)screenContext + bedrocktoolsplus::sdk::offsets::ScreenContext::mColorHolder);
                 if (colorHolderPtr && colorHolderPtr >= 0x1000) {
                     float* colorHolder = (float*)colorHolderPtr;
                     float savedColor[4] = { colorHolder[0], colorHolder[1], colorHolder[2], colorHolder[3] };
                     colorHolder[0] = 1.0f; colorHolder[1] = 1.0f; colorHolder[2] = 1.0f; colorHolder[3] = 1.0f;
 
-                    uintptr_t dimension = *(uintptr_t*)((uintptr_t)g_localPlayer + bedrocktools::sdk::offsets::Actor::mDimension);
+                    uintptr_t dimension = *(uintptr_t*)((uintptr_t)g_localPlayer + bedrocktoolsplus::sdk::offsets::Actor::mDimension);
                     if (dimension) {
-                        uintptr_t blockSource = *(uintptr_t*)(dimension + bedrocktools::sdk::offsets::Dimension::mBlockSource);
+                        uintptr_t blockSource = *(uintptr_t*)(dimension + bedrocktoolsplus::sdk::offsets::Dimension::mBlockSource);
                         if (blockSource) {
                             void* region = (void*)blockSource;
 
@@ -307,9 +307,9 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
 
                                         struct FaceData {
                                             BlockPos offset;
-                                            bedrocktools::sdk::Vec3 centerOffset;
-                                            bedrocktools::sdk::Vec3 right;
-                                            bedrocktools::sdk::Vec3 up;
+                                            bedrocktoolsplus::sdk::Vec3 centerOffset;
+                                            bedrocktoolsplus::sdk::Vec3 right;
+                                            bedrocktoolsplus::sdk::Vec3 up;
                                             bool shouldCheck;
                                         };
 
@@ -340,7 +340,7 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
                                                 
                                                 s_tessColor(tessellator, r, g, b, a);
 
-                                                bedrocktools::sdk::Vec3 centerOrigin = {bp.x + faces[f].centerOffset.x, bp.y + faces[f].centerOffset.y, bp.z + faces[f].centerOffset.z};
+                                                bedrocktoolsplus::sdk::Vec3 centerOrigin = {bp.x + faces[f].centerOffset.x, bp.y + faces[f].centerOffset.y, bp.z + faces[f].centerOffset.z};
                                                 centerOrigin.x -= camX;
                                                 centerOrigin.y -= camY;
                                                 centerOrigin.z -= camZ;
@@ -391,48 +391,48 @@ LightOverlayModule::~LightOverlayModule() {
 }
 
 void LightOverlayModule::onInit() {
-    uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::RenderLevel);
+    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderLevel);
     if (addr != 0) {
         m_patchTarget = (void*)addr;
     }
 
-    uintptr_t tb = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::TessellatorBegin);
+    uintptr_t tb = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TessellatorBegin);
     if (tb) { m_tessBeginAddr = (void*)tb; s_tessBegin = (Tessellator_begin_t)tb; }
 
-    uintptr_t tc = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::TessellatorColor);
+    uintptr_t tc = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TessellatorColor);
     if (tc) { m_tessColorAddr = (void*)tc; s_tessColor = (Tessellator_color_t)tc; }
 
-    uintptr_t tv = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::TessellatorVertex);
+    uintptr_t tv = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TessellatorVertex);
     if (tv) { m_tessVertexAddr = (void*)tv; s_tessVertex = (Tessellator_vertex_t)tv; }
 
-    uintptr_t rm = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::MeshHelpersRenderMeshImmediately2);
+    uintptr_t rm = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::MeshHelpersRenderMeshImmediately2);
     if (rm) {
         m_renderMesh2Addr = (void*)rm;
         s_renderMesh = (MeshHelpers_renderMeshImmediately_t)rm;
     } else {
-        uintptr_t rm5 = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::MeshHelpersRenderMeshImmediately);
+        uintptr_t rm5 = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::MeshHelpersRenderMeshImmediately);
         if (rm5) s_renderMesh = (MeshHelpers_renderMeshImmediately_t)rm5;
     }
 
-    uintptr_t rmg = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::RenderMaterialGroupCommon);
+    uintptr_t rmg = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderMaterialGroupCommon);
     if (rmg) {
         m_renderMaterialGroupAddr = (void*)rmg;
         uintptr_t groupAddr = resolveADRP(reinterpret_cast<uint32_t*>(rmg), 2, 0);
         if (groupAddr) {
-            s_renderMaterialGroup = groupAddr + bedrocktools::sdk::offsets::MaterialGroup::mRenderMaterialGroupOffset;
+            s_renderMaterialGroup = groupAddr + bedrocktoolsplus::sdk::offsets::MaterialGroup::mRenderMaterialGroupOffset;
         }
     }
 
-    uintptr_t gb = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BlockSourceGetBlock);
+    uintptr_t gb = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BlockSourceGetBlock);
     if (gb) s_getBlock = (BlockSource_getBlock_t)gb;
 
-    uintptr_t gbr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BlockSourceGetBrightness);
+    uintptr_t gbr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BlockSourceGetBrightness);
     if (gbr) s_getBrightness = (BlockSource_getBrightness_t)gbr;
 
-    uintptr_t isb = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BlockSourceIsSolidBlockingBlock);
+    uintptr_t isb = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BlockSourceIsSolidBlockingBlock);
     if (isb) s_isSolidBlockingBlock = (BlockSource_isSolidBlockingBlock_t)isb;
 
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { s_lightOverlayTickCallback(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_lightOverlayTickCallback(event.player); });
 }
 
 void LightOverlayModule::applyPatch() {
@@ -440,7 +440,7 @@ void LightOverlayModule::applyPatch() {
     if (!m_patchTarget) {
         return;
     }
-    bedrocktools::hooks::install(m_patchTarget, (void*)_renderLevel_hook, (void**)&_renderLevel_orig);
+    bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_renderLevel_hook, (void**)&_renderLevel_orig);
     m_patched = true;
 }
 

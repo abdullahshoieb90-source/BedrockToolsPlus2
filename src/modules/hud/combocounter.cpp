@@ -1,8 +1,8 @@
 #include "combocounter.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/world/Actor.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/world/Actor.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include <cmath>
 #include <iomanip>
 #include <sstream>
@@ -65,9 +65,9 @@ void ComboDisplay::onHurt() {
 }
 
 void ComboDisplay::onInit() {
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { onTickHookCombo(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { onTickHookCombo(event.player); });
     
-    bedrocktools::events::bus().subscribe<bedrocktools::events::AttackEvent>([](auto& event) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::AttackEvent>([](auto& event) {
         if (!onAttackHookCombo(event.gameMode, event.target, event.argument2, event.argument3)) event.cancel();
     });
 }
@@ -90,7 +90,7 @@ void ComboDisplay::onFrame() {
     }
     
     if (g_localPlayerNativeCombo) {
-        int currentHurtTime = static_cast<bedrocktools::sdk::Player*>(g_localPlayerNativeCombo)->hurtTime();
+        int currentHurtTime = static_cast<bedrocktoolsplus::sdk::Player*>(g_localPlayerNativeCombo)->hurtTime();
         static int lastHurtTime = 0;
         
         if (currentHurtTime > 0 && lastHurtTime == 0) {

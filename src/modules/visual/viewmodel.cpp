@@ -4,9 +4,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 
 static ViewModelModule* g_viewModelMod = nullptr;
 
@@ -22,13 +22,13 @@ static void _renderItem_hook(void* _this, void* renderContext, void* entity,
 
         if (!skip) {
             uintptr_t rcBase = (uintptr_t)renderContext;
-            uintptr_t ptr1 = *(uintptr_t*)(rcBase + bedrocktools::sdk::offsets::RenderContext::mMatrixStackWrapper);
+            uintptr_t ptr1 = *(uintptr_t*)(rcBase + bedrocktoolsplus::sdk::offsets::RenderContext::mMatrixStackWrapper);
             if (ptr1 != 0) {
-                uintptr_t matStack = *(uintptr_t*)(ptr1 + bedrocktools::sdk::offsets::MatrixStackWrapper::mMatrixStack);
+                uintptr_t matStack = *(uintptr_t*)(ptr1 + bedrocktoolsplus::sdk::offsets::MatrixStackWrapper::mMatrixStack);
                 if (matStack != 0) {
-                    uintptr_t* blocks = *(uintptr_t**)(matStack + bedrocktools::sdk::offsets::MatrixStack::mBlocks);
-                    size_t start = *(size_t*)(matStack + bedrocktools::sdk::offsets::MatrixStack::mStart);
-                    size_t size  = *(size_t*)(matStack + bedrocktools::sdk::offsets::MatrixStack::mSize);
+                    uintptr_t* blocks = *(uintptr_t**)(matStack + bedrocktoolsplus::sdk::offsets::MatrixStack::mBlocks);
+                    size_t start = *(size_t*)(matStack + bedrocktoolsplus::sdk::offsets::MatrixStack::mStart);
+                    size_t size  = *(size_t*)(matStack + bedrocktoolsplus::sdk::offsets::MatrixStack::mSize);
 
                     if (blocks != nullptr && size > 0) {
                         size_t last = start + size - 1;
@@ -138,25 +138,25 @@ bool ViewModelModule::isThirdPerson() const {
 
 void ViewModelModule::onInit() {
     if (!m_renderItemHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::RenderItem);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderItem);
         if (addr != 0) {
-            bedrocktools::hooks::install((void*)addr, (void*)_renderItem_hook, (void**)&_renderItem_orig);
+            bedrocktoolsplus::hooks::install((void*)addr, (void*)_renderItem_hook, (void**)&_renderItem_orig);
             m_renderItemHooked = true;
         }
     }
 
     if (!m_fovHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::GetFov);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::GetFov);
         if (addr != 0) {
-            bedrocktools::hooks::install((void*)addr, (void*)_getFov_hook, (void**)&_getFov_orig);
+            bedrocktoolsplus::hooks::install((void*)addr, (void*)_getFov_hook, (void**)&_getFov_orig);
             m_fovHooked = true;
         }
     }
 
     if (!m_perspectiveHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::GetPerspective);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::GetPerspective);
         if (addr != 0) {
-            bedrocktools::hooks::install((void*)addr, (void*)_getPerspective_hook, (void**)&_getPerspective_orig);
+            bedrocktoolsplus::hooks::install((void*)addr, (void*)_getPerspective_hook, (void**)&_getPerspective_orig);
             m_perspectiveHooked = true;
         }
     }

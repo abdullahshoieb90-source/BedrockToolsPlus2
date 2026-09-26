@@ -3,9 +3,9 @@
 
 #include "core/memory/Hooks.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/sdk/input/MoveInput.hpp>
-#include <bedrocktools/sdk/world/MobEffects.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/input/MoveInput.hpp>
+#include <bedrocktoolsplus/sdk/world/MobEffects.hpp>
 #include <pl/ModMenu.hpp>
 #include <pl/ModMenuConfig.hpp>
 #include <pl/memory/Vtable.hpp>
@@ -27,10 +27,10 @@ constexpr const char* MinecraftLibrary = "libminecraftpe.so";
 constexpr std::size_t MaxEffects = 64;
 constexpr float VanillaEffectSize = 16.0f;
 constexpr int WarningSeconds = 5;
-constexpr const char* InstantHealthImageId = "bedrocktools.potionhud.instant_health";
-constexpr const char* InstantDamageImageId = "bedrocktools.potionhud.instant_damage";
-constexpr const char* SaturationImageId = "bedrocktools.potionhud.saturation";
-constexpr const char* GenericPotionImageId = "bedrocktools.potionhud.generic";
+constexpr const char* InstantHealthImageId = "bedrocktoolsplus.potionhud.instant_health";
+constexpr const char* InstantDamageImageId = "bedrocktoolsplus.potionhud.instant_damage";
+constexpr const char* SaturationImageId = "bedrocktoolsplus.potionhud.saturation";
+constexpr const char* GenericPotionImageId = "bedrocktoolsplus.potionhud.generic";
 struct RectangleArea {
     float x0;
     float x1;
@@ -131,7 +131,7 @@ using HudMobEffectsRendererFn = void* (*)(void*, void*, void*, void*, int, void*
 
 HudMobEffectsRendererFn hudMobEffectsRendererOriginal = nullptr;
 PotionHudModule* moduleInstance = nullptr;
-bedrocktools::hooks::Handle hudMobEffectsRendererHook = nullptr;
+bedrocktoolsplus::hooks::Handle hudMobEffectsRendererHook = nullptr;
 
 void** getVtable(void* object) {
     return object ? *reinterpret_cast<void***>(object) : nullptr;
@@ -139,14 +139,14 @@ void** getVtable(void* object) {
 
 void* getLocalPlayer(void* client) {
     void** vtable = getVtable(client);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetLocalPlayer]) return nullptr;
-    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetLocalPlayer])(client);
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetLocalPlayer]) return nullptr;
+    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetLocalPlayer])(client);
 }
 
 MobEffectsComponent* getMobEffects(void* player) {
     if (!player) return nullptr;
     auto* context = reinterpret_cast<EntityContext*>(
-        reinterpret_cast<std::uintptr_t>(player) + bedrocktools::sdk::offsets::Actor::mEntityContext);
+        reinterpret_cast<std::uintptr_t>(player) + bedrocktoolsplus::sdk::offsets::Actor::mEntityContext);
     return context->tryGetComponent<MobEffectsComponent>();
 }
 
@@ -178,9 +178,9 @@ bool copyEffects(MobEffectsComponent* component, std::vector<RawEffect>& out) {
 RectangleArea getFullClippingRectangle(void* context) {
     RectangleArea result{};
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle]) return result;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle]) return result;
     using Fn = RectangleArea (*)(void*);
-    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle])(context);
+    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle])(context);
 }
 
 bool validRectangle(const RectangleArea& area) {
@@ -190,28 +190,28 @@ bool validRectangle(const RectangleArea& area) {
 
 TexturePtr getTexture(void* context, const ResourceLocation& location) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture]) return {};
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture]) return {};
     using Fn = TexturePtr (*)(void*, const ResourceLocation&, bool);
-    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture])(context, location, false);
+    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture])(context, location, false);
 }
 
 void drawImage(void* context, const ClientTexture& texture, const UiVec2& position, const UiVec2& size) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage]) return;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage]) return;
     using Fn = void (*)(void*, const ClientTexture&, const UiVec2&, const UiVec2&, const UiVec2&, const UiVec2&, bool);
     static constexpr UiVec2 uv{0.0f, 0.0f};
     static constexpr UiVec2 uvSize{1.0f, 1.0f};
-    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage])(
+    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage])(
         context, texture, position, size, uv, uvSize, false);
 }
 
 void flushImages(void* context) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages]) return;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages]) return;
     using Fn = void (*)(void*, const Color&, float, const HashedString&);
     static const HashedString material("ui_flush");
     static constexpr Color color{1.0f, 1.0f, 1.0f, 1.0f};
-    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages])(
+    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages])(
         context, color, 1.0f, material);
 }
 
@@ -378,7 +378,7 @@ PotionHudModule::PotionHudModule()
 
 PotionHudModule::~PotionHudModule() {
     if (hudMobEffectsRendererHook) {
-        bedrocktools::hooks::remove(hudMobEffectsRendererHook);
+        bedrocktoolsplus::hooks::remove(hudMobEffectsRendererHook);
         hudMobEffectsRendererHook = nullptr;
         hudMobEffectsRendererOriginal = nullptr;
     }
@@ -393,10 +393,10 @@ void PotionHudModule::onInit() {
 
     const std::uintptr_t renderer = pl::memory::resolveVtableFunction(
         "21HudMobEffectsRenderer",
-        bedrocktools::sdk::offsets::VTable::HudMobEffectsRendererRender,
+        bedrocktoolsplus::sdk::offsets::VTable::HudMobEffectsRendererRender,
         MinecraftLibrary);
     if (renderer && !hudMobEffectsRendererHook) {
-        hudMobEffectsRendererHook = bedrocktools::hooks::install(
+        hudMobEffectsRendererHook = bedrocktoolsplus::hooks::install(
             reinterpret_cast<void*>(renderer),
             reinterpret_cast<void*>(hudMobEffectsRendererDetour),
             reinterpret_cast<void**>(&hudMobEffectsRendererOriginal));
@@ -649,7 +649,7 @@ void PotionHudModule::submitEditorElement(const ConfigSnapshot& config, const st
     const std::size_t count = std::max<std::size_t>(1, effects.size());
 
     pl::modmenu::HudEditorElement element;
-    element.elementId = "bedrocktools.potionhud.effects";
+    element.elementId = "bedrocktoolsplus.potionhud.effects";
     element.displayName = "PotionHUD";
     element.positionKeyX = "hudPosX";
     element.positionKeyY = "hudPosY";

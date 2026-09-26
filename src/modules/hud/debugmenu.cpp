@@ -1,11 +1,11 @@
 #include "debugmenu.hpp"
-#include <bedrocktools/Version.hpp>
+#include <bedrocktoolsplus/Version.hpp>
 #include "modules/ModuleRegistry.hpp"
 #include "modules/player/timechanger.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
 #include "core/memory/Hooks.hpp"
 
 #include <cmath>
@@ -50,31 +50,31 @@ struct BlockPos {
 static void s_debugTickCallback(void* _this) {
     if (!g_debugMod || !g_debugMod->enabled || !_this) return;
 
-    uintptr_t rotComp = *(uintptr_t*)((uintptr_t)_this + bedrocktools::sdk::offsets::Actor::mActorRotationComponent);
-    uintptr_t svc = *(uintptr_t*)((uintptr_t)_this + bedrocktools::sdk::offsets::Actor::mStateVectorComponent);
+    uintptr_t rotComp = *(uintptr_t*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Actor::mActorRotationComponent);
+    uintptr_t svc = *(uintptr_t*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Actor::mStateVectorComponent);
 
     float pitch = 0.f, yaw = 0.f;
-    bedrocktools::sdk::Vec3 pos = {0.f, 0.f, 0.f};
+    bedrocktoolsplus::sdk::Vec3 pos = {0.f, 0.f, 0.f};
 
     if (rotComp != 0) {
         pitch = *(float*)(rotComp + 0);
         yaw   = *(float*)(rotComp + 4);
     }
     if (svc != 0) {
-        pos = *(bedrocktools::sdk::Vec3*)svc;
+        pos = *(bedrocktoolsplus::sdk::Vec3*)svc;
     }
 
     g_debugMod->updateData(yaw, pitch, pos);
 
     if (s_getBiome) {
-        uintptr_t dimension = *(uintptr_t*)((uintptr_t)_this + bedrocktools::sdk::offsets::Actor::mDimension);
+        uintptr_t dimension = *(uintptr_t*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Actor::mDimension);
         if (dimension) {
-            uintptr_t blockSource = *(uintptr_t*)(dimension + bedrocktools::sdk::offsets::Dimension::mBlockSource);
+            uintptr_t blockSource = *(uintptr_t*)(dimension + bedrocktoolsplus::sdk::offsets::Dimension::mBlockSource);
             if (blockSource) {
                 BlockPos bp(pos.x, pos.y, pos.z);
                 void* biome = s_getBiome((void*)blockSource, &bp);
                 if (biome) {
-                    std::string* biomeNamePtr = (std::string*)((uintptr_t)biome + bedrocktools::sdk::offsets::Biome::mHash + 8);
+                    std::string* biomeNamePtr = (std::string*)((uintptr_t)biome + bedrocktoolsplus::sdk::offsets::Biome::mHash + 8);
                     if (biomeNamePtr && !biomeNamePtr->empty()) {
                         g_debugMod->m_biomeName = *biomeNamePtr;
                     } else {
@@ -133,9 +133,9 @@ static void s_levelDtorVtable0Hook(void* _this) {
 
 static void s_installLevelHooks(DebugMenuModule* mod) {
     if (!mod->m_levelInitHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::LevelInit);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::LevelInit);
         if (addr) {
-            bedrocktools::hooks::install((void*)addr,
+            bedrocktoolsplus::hooks::install((void*)addr,
                       (void*)s_levelInitializeHook,
                       (void**)&s_origLevelInitialize);
             mod->m_levelInitHooked = true;
@@ -143,9 +143,9 @@ static void s_installLevelHooks(DebugMenuModule* mod) {
     }
 
     if (!mod->m_levelDtorHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::LevelDtor);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::LevelDtor);
         if (addr) {
-            bedrocktools::hooks::install((void*)addr,
+            bedrocktoolsplus::hooks::install((void*)addr,
                       (void*)s_levelDtorVtable0Hook,
                       (void**)&s_origLevelDtorVtable0);
             mod->m_levelDtorHooked = true;
@@ -165,7 +165,7 @@ DebugMenuModule::~DebugMenuModule() {
     if (g_debugMod == this) g_debugMod = nullptr;
 }
 
-void DebugMenuModule::updateData(float yaw, float pitch, const bedrocktools::sdk::Vec3& pos) {
+void DebugMenuModule::updateData(float yaw, float pitch, const bedrocktoolsplus::sdk::Vec3& pos) {
     m_yaw = yaw;
     m_pitch = pitch;
     m_pos = pos;
@@ -192,7 +192,7 @@ void DebugMenuModule::updateData(float yaw, float pitch, const bedrocktools::sdk
     }
 
     if (m_level && s_getRuntimeActorList) {
-        void* actorManager = *(void**)((uintptr_t)m_level + bedrocktools::sdk::offsets::Level::mActorManager);
+        void* actorManager = *(void**)((uintptr_t)m_level + bedrocktoolsplus::sdk::offsets::Level::mActorManager);
         if (actorManager) {
             std::vector<void*> list = s_getRuntimeActorList(actorManager);
             m_entityCount = (int)list.size();
@@ -208,21 +208,21 @@ void DebugMenuModule::updateData(float yaw, float pitch, const bedrocktools::sdk
 }
 
 void DebugMenuModule::onInit() {
-    m_timeChanger = static_cast<TimeChangerModule*>(ModuleRegistry::get().find("bedrocktools.Time Changer"));
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { s_debugTickCallback(event.player); });
+    m_timeChanger = static_cast<TimeChangerModule*>(ModuleRegistry::get().find("bedrocktoolsplus.Time Changer"));
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_debugTickCallback(event.player); });
 
     if (!s_getRuntimeActorList) {
-        uintptr_t addrActorList = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ActorManagerList);
+        uintptr_t addrActorList = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorManagerList);
         if (addrActorList) {
             s_getRuntimeActorList = (GetRuntimeActorList_t)addrActorList;
         }
     }
 
     if (!this->m_cursorHooked) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::HudCursor);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::HudCursor);
         if (addr != 0) {
             this->m_cursorPatchTarget = (void*)addr;
-            bedrocktools::hooks::install(
+            bedrocktoolsplus::hooks::install(
                     this->m_cursorPatchTarget,
                     (void*)s_cursorRenderHook,
                     (void**)&s_origCursorRender
@@ -232,7 +232,7 @@ void DebugMenuModule::onInit() {
     }
 
     if (!s_getBiome) {
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BlockSourceGetBiome);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BlockSourceGetBiome);
         if (addr != 0) {
             s_getBiome = (BlockSource_getBiome_t)addr;
         }
@@ -286,7 +286,7 @@ void DebugMenuModule::onFrame() {
     std::list<std::string> stringStore;
 
     if (!m_cacheInit) {
-        const auto fontPath = bedrocktools::core::Runtime::get().resourceDirectory() / "minecraft.ttf";
+        const auto fontPath = bedrocktoolsplus::core::Runtime::get().resourceDirectory() / "minecraft.ttf";
         std::ifstream fontFile(fontPath, std::ios::binary);
         if (fontFile) {
             std::vector<unsigned char> font((std::istreambuf_iterator<char>(fontFile)), std::istreambuf_iterator<char>());
@@ -439,7 +439,7 @@ void DebugMenuModule::onFrame() {
             rightLines.push_back({t, c == 0 ? 0xFFE6E6E6 : c});
         };
 
-        addLeft(std::string(bedrocktools::Name) + " v" + std::string(bedrocktools::Version), 0xFF55D2FF);
+        addLeft(std::string(bedrocktoolsplus::Name) + " v" + std::string(bedrocktoolsplus::Version), 0xFF55D2FF);
         addLeft("");
         
         char buf[128];

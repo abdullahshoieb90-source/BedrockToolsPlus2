@@ -3,10 +3,10 @@
 
 #include "tablist.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
 
 #include <algorithm>
 #include <array>
@@ -56,23 +56,23 @@ static std::string cleanPlayerName(const std::string& input) {
 static const void* getSkinImageFromActor(void* actor) {
     if (!actor) return nullptr;
 
-    auto skinRef = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(actor) + bedrocktools::sdk::offsets::Player::mSkin);
+    auto skinRef = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(actor) + bedrocktoolsplus::sdk::offsets::Player::mSkin);
     if (!skinRef) return nullptr;
 
-    auto threadOwner = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(skinRef) + bedrocktools::sdk::offsets::SerializedSkinRef::mSkinImpl);
+    auto threadOwner = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(skinRef) + bedrocktoolsplus::sdk::offsets::SerializedSkinRef::mSkinImpl);
     if (!threadOwner) return nullptr;
 
-    auto skinImpl = reinterpret_cast<uintptr_t>(threadOwner) + bedrocktools::sdk::offsets::ThreadOwner::mObject;
-    auto image = reinterpret_cast<const void*>(skinImpl + bedrocktools::sdk::offsets::SerializedSkinImpl::mSkinImage);
+    auto skinImpl = reinterpret_cast<uintptr_t>(threadOwner) + bedrocktoolsplus::sdk::offsets::ThreadOwner::mObject;
+    auto image = reinterpret_cast<const void*>(skinImpl + bedrocktoolsplus::sdk::offsets::SerializedSkinImpl::mSkinImage);
 
-    if (*reinterpret_cast<const bool*>(skinImpl + bedrocktools::sdk::offsets::SerializedSkinImpl::mIsPersona)) {
-        auto begin = *reinterpret_cast<const uintptr_t*>(skinImpl + bedrocktools::sdk::offsets::SerializedSkinImpl::mSkinAnimatedImages);
-        auto end = *reinterpret_cast<const uintptr_t*>(skinImpl + bedrocktools::sdk::offsets::SerializedSkinImpl::mSkinAnimatedImages + sizeof(uintptr_t));
-        if (begin && end >= begin && end - begin <= bedrocktools::sdk::offsets::AnimatedImageData::Size * 64) {
-            for (auto entry = begin; entry < end; entry += bedrocktools::sdk::offsets::AnimatedImageData::Size) {
-                auto type = *reinterpret_cast<const uint32_t*>(entry + bedrocktools::sdk::offsets::AnimatedImageData::mType);
+    if (*reinterpret_cast<const bool*>(skinImpl + bedrocktoolsplus::sdk::offsets::SerializedSkinImpl::mIsPersona)) {
+        auto begin = *reinterpret_cast<const uintptr_t*>(skinImpl + bedrocktoolsplus::sdk::offsets::SerializedSkinImpl::mSkinAnimatedImages);
+        auto end = *reinterpret_cast<const uintptr_t*>(skinImpl + bedrocktoolsplus::sdk::offsets::SerializedSkinImpl::mSkinAnimatedImages + sizeof(uintptr_t));
+        if (begin && end >= begin && end - begin <= bedrocktoolsplus::sdk::offsets::AnimatedImageData::Size * 64) {
+            for (auto entry = begin; entry < end; entry += bedrocktoolsplus::sdk::offsets::AnimatedImageData::Size) {
+                auto type = *reinterpret_cast<const uint32_t*>(entry + bedrocktoolsplus::sdk::offsets::AnimatedImageData::mType);
                 if (type == 2 || type == 3) {
-                    image = reinterpret_cast<const void*>(entry + bedrocktools::sdk::offsets::AnimatedImageData::mImage);
+                    image = reinterpret_cast<const void*>(entry + bedrocktoolsplus::sdk::offsets::AnimatedImageData::mImage);
                     if (type == 3) break;
                 }
             }
@@ -87,9 +87,9 @@ static bool extractHeadFromActor(void* actor, HeadPixels& out) {
     if (!image) return false;
 
     auto imageAddr = reinterpret_cast<uintptr_t>(image);
-    auto width = *reinterpret_cast<const uint32_t*>(imageAddr + bedrocktools::sdk::offsets::SkinImage::mWidth);
-    auto height = *reinterpret_cast<const uint32_t*>(imageAddr + bedrocktools::sdk::offsets::SkinImage::mHeight);
-    auto pixels = *reinterpret_cast<const uint8_t* const*>(imageAddr + bedrocktools::sdk::offsets::Image::mBytesOffset);
+    auto width = *reinterpret_cast<const uint32_t*>(imageAddr + bedrocktoolsplus::sdk::offsets::SkinImage::mWidth);
+    auto height = *reinterpret_cast<const uint32_t*>(imageAddr + bedrocktoolsplus::sdk::offsets::SkinImage::mHeight);
+    auto pixels = *reinterpret_cast<const uint8_t* const*>(imageAddr + bedrocktoolsplus::sdk::offsets::Image::mBytesOffset);
 
     if (!pixels || width < 64 || width > 256 || height < 32 || height > 256 || width % 64 != 0 || height % 32 != 0) {
         return false;
@@ -146,13 +146,13 @@ static std::string getActorName(void* actor) {
         if (!name.empty()) return name;
     }
 
-    auto* filteredName = reinterpret_cast<const std::string*>(reinterpret_cast<uintptr_t>(actor) + bedrocktools::sdk::offsets::Actor::mFilteredNameTag);
+    auto* filteredName = reinterpret_cast<const std::string*>(reinterpret_cast<uintptr_t>(actor) + bedrocktoolsplus::sdk::offsets::Actor::mFilteredNameTag);
     if (filteredName && !filteredName->empty() && filteredName->size() <= 256) {
         auto name = cleanPlayerName(*filteredName);
         if (!name.empty()) return name;
     }
 
-    auto* playerName = reinterpret_cast<const std::string*>(reinterpret_cast<uintptr_t>(actor) + bedrocktools::sdk::offsets::Player::mName);
+    auto* playerName = reinterpret_cast<const std::string*>(reinterpret_cast<uintptr_t>(actor) + bedrocktoolsplus::sdk::offsets::Player::mName);
     if (playerName && !playerName->empty() && playerName->size() <= 256) {
         return cleanPlayerName(*playerName);
     }
@@ -193,9 +193,9 @@ void TablistModule::onLocalPlayerTick(void* localPlayer) {
     m_refreshTicks = 0;
 
     std::vector<void*> actors;
-    auto level = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(localPlayer) + bedrocktools::sdk::offsets::Actor::mLevel);
+    auto level = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(localPlayer) + bedrocktoolsplus::sdk::offsets::Actor::mLevel);
     if (level && s_getRuntimeActorList) {
-        auto actorManager = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(level) + bedrocktools::sdk::offsets::Level::mActorManager);
+        auto actorManager = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(level) + bedrocktoolsplus::sdk::offsets::Level::mActorManager);
         if (actorManager) actors = s_getRuntimeActorList(actorManager);
     }
 
@@ -234,10 +234,10 @@ void TablistModule::onLocalPlayerTick(void* localPlayer) {
 }
 
 void TablistModule::onInit() {
-    s_getRuntimeActorList = reinterpret_cast<GetRuntimeActorList_t>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ActorManagerList));
-    s_actorIsPlayer = reinterpret_cast<ActorIsPlayer_t>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ActorIsPlayer));
-    s_actorGetNameTag = reinterpret_cast<ActorGetNameTag_t>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ActorGetNameTag));
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { tablistTickCallback(event.player); });
+    s_getRuntimeActorList = reinterpret_cast<GetRuntimeActorList_t>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorManagerList));
+    s_actorIsPlayer = reinterpret_cast<ActorIsPlayer_t>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorIsPlayer));
+    s_actorGetNameTag = reinterpret_cast<ActorGetNameTag_t>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorGetNameTag));
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { tablistTickCallback(event.player); });
 }
 
 void TablistModule::onEnable() {

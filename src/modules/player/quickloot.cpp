@@ -1,7 +1,7 @@
 #include "quickloot.hpp"
 
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include <limits>
 
 QuickLootModule::QuickLootModule()
@@ -9,10 +9,10 @@ QuickLootModule::QuickLootModule()
 
 void QuickLootModule::onInit() {
     m_handleAutoPlace = reinterpret_cast<HandleAutoPlaceFn>(
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ContainerScreenControllerHandleAutoPlace)
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ContainerScreenControllerHandleAutoPlace)
     );
 
-    bedrocktools::events::bus().subscribe<bedrocktools::events::ContainerSlotSelectedEvent>(
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::ContainerSlotSelectedEvent>(
         [this](auto& event) {
             if (event.afterSelection || !enabled || !m_handleAutoPlace || m_transferring || !event.controller ||
                 event.index < 0 || event.collectionName != "container_items") return;
@@ -24,6 +24,6 @@ void QuickLootModule::onInit() {
             m_handleAutoPlace(event.controller, std::numeric_limits<int>::max(), event.collectionName, event.index);
             event.cancel();
         },
-        bedrocktools::events::EventPriority::First
+        bedrocktoolsplus::events::EventPriority::First
     );
 }

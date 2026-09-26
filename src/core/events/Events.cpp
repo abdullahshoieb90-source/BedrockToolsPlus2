@@ -1,6 +1,6 @@
-#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
 
-namespace bedrocktools::events {
+namespace bedrocktoolsplus::events {
 
 EventBus& bus() {
     static EventBus instance;

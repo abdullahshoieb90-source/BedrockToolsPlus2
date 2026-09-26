@@ -1,14 +1,14 @@
 #include "weatherchanger.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/world/Actor.hpp>
-#include <bedrocktools/sdk/world/Weather.hpp>
-#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/world/Actor.hpp>
+#include <bedrocktoolsplus/sdk/world/Weather.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
 #include "core/memory/Hooks.hpp"
 
 #include <atomic>
 
 static WeatherChangerModule* g_weatherMod = nullptr;
-static std::atomic<bedrocktools::sdk::Weather*> g_lastWeather{nullptr};
+static std::atomic<bedrocktoolsplus::sdk::Weather*> g_lastWeather{nullptr};
 
 using TickFn = void(*)(void*);
 using WeatherLevelFn = float(*)(void*, float);
@@ -23,21 +23,21 @@ static WeatherStateFn s_origIsRaining = nullptr;
 static WeatherStateFn s_origIsLightning = nullptr;
 static BiomeGetTemperatureFn s_origBiomeGetTemperature = nullptr;
 
-static bedrocktools::hooks::Handle s_dimensionTickHookHandle = nullptr;
-static bedrocktools::hooks::Handle s_weatherTickHookHandle = nullptr;
-static bedrocktools::hooks::Handle s_getRainLevelHookHandle = nullptr;
-static bedrocktools::hooks::Handle s_getLightningLevelHookHandle = nullptr;
-static bedrocktools::hooks::Handle s_isRainingHookHandle = nullptr;
-static bedrocktools::hooks::Handle s_isLightningHookHandle = nullptr;
-static bedrocktools::hooks::Handle s_biomeTemperatureHookHandle = nullptr;
+static bedrocktoolsplus::hooks::Handle s_dimensionTickHookHandle = nullptr;
+static bedrocktoolsplus::hooks::Handle s_weatherTickHookHandle = nullptr;
+static bedrocktoolsplus::hooks::Handle s_getRainLevelHookHandle = nullptr;
+static bedrocktoolsplus::hooks::Handle s_getLightningLevelHookHandle = nullptr;
+static bedrocktoolsplus::hooks::Handle s_isRainingHookHandle = nullptr;
+static bedrocktoolsplus::hooks::Handle s_isLightningHookHandle = nullptr;
+static bedrocktoolsplus::hooks::Handle s_biomeTemperatureHookHandle = nullptr;
 
-static void forceWeather(bedrocktools::sdk::Weather* weather) {
+static void forceWeather(bedrocktoolsplus::sdk::Weather* weather) {
     if (!weather) return;
     g_lastWeather.store(weather, std::memory_order_release);
     if (g_weatherMod && g_weatherMod->enabled) g_weatherMod->applyWeather(weather);
 }
 
-static void s_normalTickCallback(bedrocktools::sdk::Player* localPlayer) {
+static void s_normalTickCallback(bedrocktoolsplus::sdk::Player* localPlayer) {
     if (!localPlayer) return;
     auto* dimension = localPlayer->dimension();
     if (!dimension) return;
@@ -45,22 +45,22 @@ static void s_normalTickCallback(bedrocktools::sdk::Player* localPlayer) {
 }
 
 static void s_dimensionTickHook(void* dimension) {
-    auto* typedDimension = static_cast<bedrocktools::sdk::Dimension*>(dimension);
+    auto* typedDimension = static_cast<bedrocktoolsplus::sdk::Dimension*>(dimension);
     auto* weather = typedDimension ? typedDimension->weather() : nullptr;
-    forceWeather(static_cast<bedrocktools::sdk::Weather*>(weather));
+    forceWeather(static_cast<bedrocktoolsplus::sdk::Weather*>(weather));
     if (s_origDimensionTick) s_origDimensionTick(dimension);
-    forceWeather(static_cast<bedrocktools::sdk::Weather*>(weather));
+    forceWeather(static_cast<bedrocktoolsplus::sdk::Weather*>(weather));
 }
 
 static void s_weatherTickHook(void* weather) {
-    forceWeather(static_cast<bedrocktools::sdk::Weather*>(weather));
+    forceWeather(static_cast<bedrocktoolsplus::sdk::Weather*>(weather));
     if (s_origWeatherTick) s_origWeatherTick(weather);
-    forceWeather(static_cast<bedrocktools::sdk::Weather*>(weather));
+    forceWeather(static_cast<bedrocktoolsplus::sdk::Weather*>(weather));
 }
 
 static float s_getRainLevelHook(void* weather, float delta) {
     if (g_weatherMod && g_weatherMod->enabled) {
-        forceWeather(static_cast<bedrocktools::sdk::Weather*>(weather));
+        forceWeather(static_cast<bedrocktoolsplus::sdk::Weather*>(weather));
         return g_weatherMod->getRainLevel();
     }
     return s_origGetRainLevel ? s_origGetRainLevel(weather, delta) : 0.0f;
@@ -68,7 +68,7 @@ static float s_getRainLevelHook(void* weather, float delta) {
 
 static float s_getLightningLevelHook(void* weather, float delta) {
     if (g_weatherMod && g_weatherMod->enabled) {
-        forceWeather(static_cast<bedrocktools::sdk::Weather*>(weather));
+        forceWeather(static_cast<bedrocktoolsplus::sdk::Weather*>(weather));
         return g_weatherMod->getLightningLevel();
     }
     return s_origGetLightningLevel ? s_origGetLightningLevel(weather, delta) : 0.0f;
@@ -76,7 +76,7 @@ static float s_getLightningLevelHook(void* weather, float delta) {
 
 static bool s_isRainingHook(void* weather) {
     if (g_weatherMod && g_weatherMod->enabled) {
-        forceWeather(static_cast<bedrocktools::sdk::Weather*>(weather));
+        forceWeather(static_cast<bedrocktoolsplus::sdk::Weather*>(weather));
         return g_weatherMod->getRainLevel() > 0.2f;
     }
     return s_origIsRaining ? s_origIsRaining(weather) : false;
@@ -84,7 +84,7 @@ static bool s_isRainingHook(void* weather) {
 
 static bool s_isLightningHook(void* weather) {
     if (g_weatherMod && g_weatherMod->enabled) {
-        forceWeather(static_cast<bedrocktools::sdk::Weather*>(weather));
+        forceWeather(static_cast<bedrocktoolsplus::sdk::Weather*>(weather));
         return g_weatherMod->getLightningLevel() > 0.2f;
     }
     return s_origIsLightning ? s_origIsLightning(weather) : false;
@@ -97,11 +97,11 @@ static float s_biomeGetTemperatureHook(void* biome, void* blockSource, void* blo
     return s_origBiomeGetTemperature ? s_origBiomeGetTemperature(biome, blockSource, blockPos) : 0.5f;
 }
 
-static bedrocktools::hooks::Handle installHook(bedrocktools::memory::SignatureId id, void* detour, void** original, bedrocktools::hooks::Handle& handle) {
+static bedrocktoolsplus::hooks::Handle installHook(bedrocktoolsplus::memory::SignatureId id, void* detour, void** original, bedrocktoolsplus::hooks::Handle& handle) {
     if (handle) return handle;
-    auto address = bedrocktools::memory::resolve(id);
+    auto address = bedrocktoolsplus::memory::resolve(id);
     if (!address) return nullptr;
-    handle = bedrocktools::hooks::install(reinterpret_cast<void*>(address), detour, original);
+    handle = bedrocktoolsplus::hooks::install(reinterpret_cast<void*>(address), detour, original);
     return handle;
 }
 
@@ -115,20 +115,20 @@ WeatherChangerModule::~WeatherChangerModule() {
 }
 
 void WeatherChangerModule::installHooks() {
-    installHook(bedrocktools::memory::SignatureId::DimensionTick, reinterpret_cast<void*>(s_dimensionTickHook), reinterpret_cast<void**>(&s_origDimensionTick), s_dimensionTickHookHandle);
-    installHook(bedrocktools::memory::SignatureId::WeatherTick, reinterpret_cast<void*>(s_weatherTickHook), reinterpret_cast<void**>(&s_origWeatherTick), s_weatherTickHookHandle);
-    installHook(bedrocktools::memory::SignatureId::WeatherGetRainLevel, reinterpret_cast<void*>(s_getRainLevelHook), reinterpret_cast<void**>(&s_origGetRainLevel), s_getRainLevelHookHandle);
-    installHook(bedrocktools::memory::SignatureId::WeatherGetLightningLevel, reinterpret_cast<void*>(s_getLightningLevelHook), reinterpret_cast<void**>(&s_origGetLightningLevel), s_getLightningLevelHookHandle);
-    installHook(bedrocktools::memory::SignatureId::WeatherIsRaining, reinterpret_cast<void*>(s_isRainingHook), reinterpret_cast<void**>(&s_origIsRaining), s_isRainingHookHandle);
-    installHook(bedrocktools::memory::SignatureId::WeatherIsLightning, reinterpret_cast<void*>(s_isLightningHook), reinterpret_cast<void**>(&s_origIsLightning), s_isLightningHookHandle);
-    installHook(bedrocktools::memory::SignatureId::BiomeGetTemperature, reinterpret_cast<void*>(s_biomeGetTemperatureHook), reinterpret_cast<void**>(&s_origBiomeGetTemperature), s_biomeTemperatureHookHandle);
+    installHook(bedrocktoolsplus::memory::SignatureId::DimensionTick, reinterpret_cast<void*>(s_dimensionTickHook), reinterpret_cast<void**>(&s_origDimensionTick), s_dimensionTickHookHandle);
+    installHook(bedrocktoolsplus::memory::SignatureId::WeatherTick, reinterpret_cast<void*>(s_weatherTickHook), reinterpret_cast<void**>(&s_origWeatherTick), s_weatherTickHookHandle);
+    installHook(bedrocktoolsplus::memory::SignatureId::WeatherGetRainLevel, reinterpret_cast<void*>(s_getRainLevelHook), reinterpret_cast<void**>(&s_origGetRainLevel), s_getRainLevelHookHandle);
+    installHook(bedrocktoolsplus::memory::SignatureId::WeatherGetLightningLevel, reinterpret_cast<void*>(s_getLightningLevelHook), reinterpret_cast<void**>(&s_origGetLightningLevel), s_getLightningLevelHookHandle);
+    installHook(bedrocktoolsplus::memory::SignatureId::WeatherIsRaining, reinterpret_cast<void*>(s_isRainingHook), reinterpret_cast<void**>(&s_origIsRaining), s_isRainingHookHandle);
+    installHook(bedrocktoolsplus::memory::SignatureId::WeatherIsLightning, reinterpret_cast<void*>(s_isLightningHook), reinterpret_cast<void**>(&s_origIsLightning), s_isLightningHookHandle);
+    installHook(bedrocktoolsplus::memory::SignatureId::BiomeGetTemperature, reinterpret_cast<void*>(s_biomeGetTemperatureHook), reinterpret_cast<void**>(&s_origBiomeGetTemperature), s_biomeTemperatureHookHandle);
 
     m_hooked = s_dimensionTickHookHandle || s_weatherTickHookHandle || s_getRainLevelHookHandle || s_getLightningLevelHookHandle;
 }
 
 void WeatherChangerModule::onInit() {
     installHooks();
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { s_normalTickCallback(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_normalTickCallback(event.player); });
 }
 
 void WeatherChangerModule::onEnable() {
@@ -155,7 +155,7 @@ float WeatherChangerModule::getLightningLevel() const {
 }
 
 void WeatherChangerModule::applyWeather(void* weather) const {
-    auto* state = static_cast<bedrocktools::sdk::Weather*>(weather);
+    auto* state = static_cast<bedrocktoolsplus::sdk::Weather*>(weather);
     if (!state) return;
     state->setRainLevel(getRainLevel());
     state->setLightningLevel(getLightningLevel());

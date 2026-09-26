@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Module.hpp"
-#include <bedrocktools/sdk/Types.hpp>
+#include <bedrocktoolsplus/sdk/Types.hpp>
 #include <vector>
 #include <string>
 
@@ -20,7 +20,7 @@ public:
     int tickInterval = 5;
     int maxPoints = 1000;
 
-    std::vector<bedrocktools::sdk::Vec3> points;
+    std::vector<bedrocktoolsplus::sdk::Vec3> points;
     int tickCounter = 0;
 
     void clearTrail();

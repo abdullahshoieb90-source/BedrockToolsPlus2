@@ -13,7 +13,7 @@ static void onModuleToggle(std::string_view module_id, bool enabled) {
     auto* mod = ModuleRegistry::get().find(module_id);
     if (!mod) return;
     mod->setMasterEnabled(enabled);
-    bedrocktools::config::ConfigManager::get().save();
+    bedrocktoolsplus::config::ConfigManager::get().save();
 }
 
 static void onModuleKeybind(std::string_view module_id, std::string_view key, bool isDown) {
@@ -27,7 +27,7 @@ static void onModuleConfigChanged(std::string_view module_id, std::string_view k
     auto* mod = ModuleRegistry::get().find(module_id);
     if (!mod) return;
     if (mod->onMenuConfigChanged(key, value)) {
-        bedrocktools::config::ConfigManager::get().save();
+        bedrocktoolsplus::config::ConfigManager::get().save();
         return;
     }
 
@@ -63,7 +63,7 @@ static void onModuleConfigChanged(std::string_view module_id, std::string_view k
         j[safeKey] = safeValue;
     }
     mod->loadConfig(j);
-    bedrocktools::config::ConfigManager::get().save();
+    bedrocktoolsplus::config::ConfigManager::get().save();
 }
 
 void registerModulesWithLauncher() {

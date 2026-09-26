@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string>
 
-namespace bedrocktools::sdk { class Player; }
+namespace bedrocktoolsplus::sdk { class Player; }
 
 class TotemCounterModule : public Module {
 public:
@@ -19,7 +19,7 @@ public:
     void saveConfig(nlohmann::json& json) override;
 
 private:
-    void updateCount(bedrocktools::sdk::Player* player);
+    void updateCount(bedrocktoolsplus::sdk::Player* player);
     std::atomic<int> m_count{0};
     std::mutex m_configMutex;
     float hudPosX = 20.0f;

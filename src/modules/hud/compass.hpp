@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Module.hpp"
-#include <bedrocktools/sdk/Types.hpp>
+#include <bedrocktoolsplus/sdk/Types.hpp>
 
 class CompassModule : public Module {
 public:

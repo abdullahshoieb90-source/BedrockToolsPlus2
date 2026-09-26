@@ -1,9 +1,9 @@
 #include "skinstealer.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
 #include "../../config/ConfigManager.hpp"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -55,51 +55,51 @@ static std::string stripColors(const std::string& input) {
 static void dumpSkin(void* targetPlayer) {
     if (!targetPlayer) return;
     
-    void* skinRefPtr = *(void**)((uintptr_t)targetPlayer + bedrocktools::sdk::offsets::Player::mSkin);
+    void* skinRefPtr = *(void**)((uintptr_t)targetPlayer + bedrocktoolsplus::sdk::offsets::Player::mSkin);
     if (!skinRefPtr) return;
     
-    void* skinImplSharedPtrBase = (void*)((uintptr_t)skinRefPtr + bedrocktools::sdk::offsets::SerializedSkinRef::mSkinImpl);
+    void* skinImplSharedPtrBase = (void*)((uintptr_t)skinRefPtr + bedrocktoolsplus::sdk::offsets::SerializedSkinRef::mSkinImpl);
     void* threadOwner = *(void**)skinImplSharedPtrBase;
     if (!threadOwner) return;
     
-    void* skinImpl = (void*)((uintptr_t)threadOwner + bedrocktools::sdk::offsets::ThreadOwner::mObject);
+    void* skinImpl = (void*)((uintptr_t)threadOwner + bedrocktoolsplus::sdk::offsets::ThreadOwner::mObject);
     if (!skinImpl) return;
     
-    void* targetImage = (void*)((uintptr_t)skinImpl + bedrocktools::sdk::offsets::SerializedSkinImpl::mSkinImage);
+    void* targetImage = (void*)((uintptr_t)skinImpl + bedrocktoolsplus::sdk::offsets::SerializedSkinImpl::mSkinImage);
     
-    bool isPersona = *(bool*)((uintptr_t)skinImpl + bedrocktools::sdk::offsets::SerializedSkinImpl::mIsPersona);
+    bool isPersona = *(bool*)((uintptr_t)skinImpl + bedrocktoolsplus::sdk::offsets::SerializedSkinImpl::mIsPersona);
     if (isPersona) {
-        uintptr_t vecBegin = *(uintptr_t*)((uintptr_t)skinImpl + bedrocktools::sdk::offsets::SerializedSkinImpl::mSkinAnimatedImages);
-        uintptr_t vecEnd   = *(uintptr_t*)((uintptr_t)skinImpl + bedrocktools::sdk::offsets::SerializedSkinImpl::mSkinAnimatedImages + 8);
+        uintptr_t vecBegin = *(uintptr_t*)((uintptr_t)skinImpl + bedrocktoolsplus::sdk::offsets::SerializedSkinImpl::mSkinAnimatedImages);
+        uintptr_t vecEnd   = *(uintptr_t*)((uintptr_t)skinImpl + bedrocktoolsplus::sdk::offsets::SerializedSkinImpl::mSkinAnimatedImages + 8);
         
-        for (uintptr_t ptr = vecBegin; ptr < vecEnd; ptr += bedrocktools::sdk::offsets::AnimatedImageData::Size) {
-            uint32_t type = *(uint32_t*)(ptr + bedrocktools::sdk::offsets::AnimatedImageData::mType);
+        for (uintptr_t ptr = vecBegin; ptr < vecEnd; ptr += bedrocktoolsplus::sdk::offsets::AnimatedImageData::Size) {
+            uint32_t type = *(uint32_t*)(ptr + bedrocktoolsplus::sdk::offsets::AnimatedImageData::mType);
             if (type == 3 || type == 2) { 
-                targetImage = (void*)(ptr + bedrocktools::sdk::offsets::AnimatedImageData::mImage);
+                targetImage = (void*)(ptr + bedrocktoolsplus::sdk::offsets::AnimatedImageData::mImage);
                 if (type == 3) break;
             }
         }
     }
     
-    uint32_t width = *(uint32_t*)((uintptr_t)targetImage + bedrocktools::sdk::offsets::SkinImage::mWidth);
-    uint32_t height = *(uint32_t*)((uintptr_t)targetImage + bedrocktools::sdk::offsets::SkinImage::mHeight);
+    uint32_t width = *(uint32_t*)((uintptr_t)targetImage + bedrocktoolsplus::sdk::offsets::SkinImage::mWidth);
+    uint32_t height = *(uint32_t*)((uintptr_t)targetImage + bedrocktoolsplus::sdk::offsets::SkinImage::mHeight);
     
     if (width == 0 || height == 0) return;
     
-    std::string* pFilteredNameTag = (std::string*)((uintptr_t)targetPlayer + bedrocktools::sdk::offsets::Actor::mFilteredNameTag);
+    std::string* pFilteredNameTag = (std::string*)((uintptr_t)targetPlayer + bedrocktoolsplus::sdk::offsets::Actor::mFilteredNameTag);
     std::string cleanName = "unknown_player";
     if (pFilteredNameTag && !pFilteredNameTag->empty()) {
         cleanName = stripColors(*pFilteredNameTag);
         if (cleanName.empty()) cleanName = "unknown_player";
     }
     
-    std::string configPath = bedrocktools::config::ConfigManager::get().getConfigPath();
+    std::string configPath = bedrocktoolsplus::config::ConfigManager::get().getConfigPath();
     size_t lastSlash = configPath.find_last_of('/');
-    std::string configDir = (lastSlash != std::string::npos) ? configPath.substr(0, lastSlash) : "/sdcard/games/BedrockTools";
+    std::string configDir = (lastSlash != std::string::npos) ? configPath.substr(0, lastSlash) : "/sdcard/games/BedrockToolsPlus";
     
     std::string outPath = configDir + "/" + cleanName + "_skin.png";
     
-    void* pixels = *(void**)((uintptr_t)targetImage + bedrocktools::sdk::offsets::Image::mBytesOffset);
+    void* pixels = *(void**)((uintptr_t)targetImage + bedrocktoolsplus::sdk::offsets::Image::mBytesOffset);
     if (!pixels) return;
     
     int result = stbi_write_png(outPath.c_str(), width, height, 4, pixels, width * 4);
@@ -111,7 +111,7 @@ static void dumpSkin(void* targetPlayer) {
 static bool onAttackHook(void* mode, void* actor, void* a3, void* a4) {
     if (g_skinStealer && g_skinStealer->enabled) {
         if (g_localPlayerNative) {
-            void* level_ptr = *(void**)((uintptr_t)g_localPlayerNative + bedrocktools::sdk::offsets::Actor::mLevel);
+            void* level_ptr = *(void**)((uintptr_t)g_localPlayerNative + bedrocktoolsplus::sdk::offsets::Actor::mLevel);
             if (level_ptr && getHitResultFn) {
                 void* hit = getHitResultFn(level_ptr);
                 if (hit && getEntityFn && isPlayerFn) {
@@ -137,24 +137,24 @@ SkinStealerModule::~SkinStealerModule() {
 }
 
 void SkinStealerModule::onInit() {
-    uintptr_t getHitResultAddr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::LevelGetHitResult);
+    uintptr_t getHitResultAddr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::LevelGetHitResult);
     if (getHitResultAddr) {
         getHitResultFn = reinterpret_cast<LevelGetHitResultFn>(getHitResultAddr);
     }
     
-    uintptr_t getEntityAddr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::HitResultGetEntity);
+    uintptr_t getEntityAddr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::HitResultGetEntity);
     if (getEntityAddr) {
         getEntityFn = reinterpret_cast<HitResultGetEntityFn>(getEntityAddr);
     }
     
-    uintptr_t isPlayerAddr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ActorIsPlayer);
+    uintptr_t isPlayerAddr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorIsPlayer);
     if (isPlayerAddr) {
         isPlayerFn = reinterpret_cast<ActorIsPlayerFn>(isPlayerAddr);
     }
     
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { onTickHook(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { onTickHook(event.player); });
     
-    bedrocktools::events::bus().subscribe<bedrocktools::events::AttackEvent>([](auto& event) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::AttackEvent>([](auto& event) {
         if (!onAttackHook(event.gameMode, event.target, event.argument2, event.argument3)) event.cancel();
     });
 }

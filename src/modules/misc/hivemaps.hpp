@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace bedrocktools::hive {
+namespace bedrocktoolsplus::hive {
 
 struct MapInfo {
     std::string name;

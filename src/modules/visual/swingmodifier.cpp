@@ -1,8 +1,8 @@
 #include "swingmodifier.hpp"
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 
 static SwingModifierModule* g_swingMod = nullptr;
 
@@ -35,23 +35,23 @@ static int _getModifiedSwingDuration_hook(void* self) {
 }
 
 void SwingModifierModule::onInit() {
-    uintptr_t renderFirstPerson = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ItemInHandRendererRenderFirstPerson);
+    uintptr_t renderFirstPerson = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemInHandRendererRenderFirstPerson);
     if (renderFirstPerson != 0) {
         if(!m_patchTarget){
-            m_patchTarget = (void*)(renderFirstPerson + bedrocktools::sdk::offsets::ItemInHandRenderer::mRenderFirstPersonTransformPatchOffset1);
-            m_patchTarget2 = (void*)(renderFirstPerson + bedrocktools::sdk::offsets::ItemInHandRenderer::mRenderFirstPersonTransformPatchOffset2);
+            m_patchTarget = (void*)(renderFirstPerson + bedrocktoolsplus::sdk::offsets::ItemInHandRenderer::mRenderFirstPersonTransformPatchOffset1);
+            m_patchTarget2 = (void*)(renderFirstPerson + bedrocktoolsplus::sdk::offsets::ItemInHandRenderer::mRenderFirstPersonTransformPatchOffset2);
             memcpy(m_originalBytes, m_patchTarget, 4);
             memcpy(m_originalBytes2, m_patchTarget2, 4);
         }
         if(!m_renderFirstPersonHooked){
-            bedrocktools::hooks::install((void*)renderFirstPerson, (void*)_renderFirstPerson_hook, (void**)&_renderFirstPerson_orig);
+            bedrocktoolsplus::hooks::install((void*)renderFirstPerson, (void*)_renderFirstPerson_hook, (void**)&_renderFirstPerson_orig);
             m_renderFirstPersonHooked = true;
         }
     }
     if(!m_getModifiedSwingDurationHooked){
-        uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::MobGetModifiedSwingDuration);
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::MobGetModifiedSwingDuration);
         if (addr != 0) {
-            bedrocktools::hooks::install((void*)addr, (void*)_getModifiedSwingDuration_hook, (void**)&_getModifiedSwingDuration_orig);
+            bedrocktoolsplus::hooks::install((void*)addr, (void*)_getModifiedSwingDuration_hook, (void**)&_getModifiedSwingDuration_orig);
             m_getModifiedSwingDurationHooked = true;
         }
     }
@@ -60,15 +60,15 @@ void SwingModifierModule::onInit() {
 void SwingModifierModule::applyPatch() {
     if (m_patched || !m_patchTarget) return;
     uint32_t nop = 0xD503201F; 
-    bedrocktools::sdk::patchMemory(m_patchTarget, &nop, 4);
-    bedrocktools::sdk::patchMemory(m_patchTarget2, &nop, 4);
+    bedrocktoolsplus::sdk::patchMemory(m_patchTarget, &nop, 4);
+    bedrocktoolsplus::sdk::patchMemory(m_patchTarget2, &nop, 4);
     m_patched = true;
 }
 
 void SwingModifierModule::removePatch() {
     if (!m_patched || !m_patchTarget) return;
-    bedrocktools::sdk::patchMemory(m_patchTarget, m_originalBytes, 4);
-    bedrocktools::sdk::patchMemory(m_patchTarget2, m_originalBytes2, 4);
+    bedrocktoolsplus::sdk::patchMemory(m_patchTarget, m_originalBytes, 4);
+    bedrocktoolsplus::sdk::patchMemory(m_patchTarget2, m_originalBytes2, 4);
     m_patched = false;
 }
 

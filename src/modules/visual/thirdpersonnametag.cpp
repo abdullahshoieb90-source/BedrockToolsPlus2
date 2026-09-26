@@ -1,7 +1,7 @@
 #include "thirdpersonnametag.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 
 ThirdPersonNametagModule::ThirdPersonNametagModule() : Module("Third Person Nametag", "Shows your own nametag in third person view.") {
     m_patched = false;
@@ -14,10 +14,10 @@ ThirdPersonNametagModule::~ThirdPersonNametagModule() {
 
 void ThirdPersonNametagModule::onInit() {
     if (m_patchTarget) return;
-    uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::Nametag);
+    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::Nametag);
     if (addr != 0) {
         
-        m_patchTarget = (void*)(addr + bedrocktools::sdk::offsets::NameTag::mExtractNameTagsPatchOffset);
+        m_patchTarget = (void*)(addr + bedrocktoolsplus::sdk::offsets::NameTag::mExtractNameTagsPatchOffset);
         memcpy(m_originalBytes, m_patchTarget, 4);
     }
 }
@@ -25,13 +25,13 @@ void ThirdPersonNametagModule::onInit() {
 void ThirdPersonNametagModule::applyPatch() {
     if (m_patched || !m_patchTarget) return;
     uint32_t nop = 0xD503201F; 
-    bedrocktools::sdk::patchMemory(m_patchTarget, &nop, 4);
+    bedrocktoolsplus::sdk::patchMemory(m_patchTarget, &nop, 4);
     m_patched = true;
 }
 
 void ThirdPersonNametagModule::removePatch() {
     if (!m_patched || !m_patchTarget) return;
-    bedrocktools::sdk::patchMemory(m_patchTarget, m_originalBytes, 4);
+    bedrocktoolsplus::sdk::patchMemory(m_patchTarget, m_originalBytes, 4);
     m_patched = false;
 }
 

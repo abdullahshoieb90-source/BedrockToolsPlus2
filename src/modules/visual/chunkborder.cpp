@@ -1,9 +1,9 @@
 #include "chunkborder.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 #include <cmath>
 #include <string>
 #include <cstring>
@@ -110,13 +110,13 @@ static uintptr_t    s_renderMaterialGroup = 0;
 
 static void (*_renderLevel_orig)(void* _this, void* screenContext, void* a3);
 
-static bedrocktools::sdk::Vec3 g_playerPos = {0.f, 0.f, 0.f};
+static bedrocktoolsplus::sdk::Vec3 g_playerPos = {0.f, 0.f, 0.f};
 
 static void s_chunkBorderTickCallback(void* _this) {
     if (!g_chunkBorderMod || !g_chunkBorderMod->enabled) return;
-    uintptr_t svc = *(uintptr_t*)((uintptr_t)_this + bedrocktools::sdk::offsets::Actor::mStateVectorComponent);
+    uintptr_t svc = *(uintptr_t*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Actor::mStateVectorComponent);
     if (svc != 0) {
-        g_playerPos = *(bedrocktools::sdk::Vec3*)svc;
+        g_playerPos = *(bedrocktoolsplus::sdk::Vec3*)svc;
     }
 }
 
@@ -148,23 +148,23 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
     if (!s_tessBegin || !s_tessColor || !s_tessVertex || !s_renderMesh) return;
     if (!screenContext || (uintptr_t)screenContext < 0x1000) return;
 
-    uintptr_t tessellatorPtr = *(uintptr_t*)((uintptr_t)screenContext + bedrocktools::sdk::offsets::ScreenContext::mTessellator);
+    uintptr_t tessellatorPtr = *(uintptr_t*)((uintptr_t)screenContext + bedrocktoolsplus::sdk::offsets::ScreenContext::mTessellator);
     if (!tessellatorPtr || tessellatorPtr < 0x1000) return;
     void* tessellator = (void*)tessellatorPtr;
 
-    uintptr_t lrpPtr = *(uintptr_t*)((uintptr_t)_this + bedrocktools::sdk::offsets::LevelRenderer::mLevelRendererPlayer);
+    uintptr_t lrpPtr = *(uintptr_t*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::LevelRenderer::mLevelRendererPlayer);
     if (!lrpPtr || lrpPtr < 0x1000) return;
 
-    float camX = *(float*)(lrpPtr + bedrocktools::sdk::offsets::LevelRendererPlayer::mCamPos);
-    float camY = *(float*)(lrpPtr + bedrocktools::sdk::offsets::LevelRendererPlayer::mCamPos + 4);
-    float camZ = *(float*)(lrpPtr + bedrocktools::sdk::offsets::LevelRendererPlayer::mCamPos + 8);
+    float camX = *(float*)(lrpPtr + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mCamPos);
+    float camY = *(float*)(lrpPtr + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mCamPos + 4);
+    float camZ = *(float*)(lrpPtr + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mCamPos + 8);
 
     ensureMaterials();
 
     void* matInner = s_matSelection ? (void*)&s_matSelection
-                                    : (void*)(lrpPtr + bedrocktools::sdk::offsets::LevelRendererPlayer::mSelectionOverlayMaterial);
+                                    : (void*)(lrpPtr + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mSelectionOverlayMaterial);
 
-    uintptr_t colorHolderPtr = *(uintptr_t*)((uintptr_t)screenContext + bedrocktools::sdk::offsets::ScreenContext::mColorHolder);
+    uintptr_t colorHolderPtr = *(uintptr_t*)((uintptr_t)screenContext + bedrocktoolsplus::sdk::offsets::ScreenContext::mColorHolder);
     if (!colorHolderPtr || colorHolderPtr < 0x1000) return;
     float* colorHolder = (float*)colorHolderPtr;
 
@@ -174,7 +174,7 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
     colorHolder[2] = 1.0f;
     colorHolder[3] = 1.0f;
 
-    auto drawBatchedLines = [&](const std::vector<std::pair<bedrocktools::sdk::Vec3, bedrocktools::sdk::Vec3>>& lines, uint32_t color) {
+    auto drawBatchedLines = [&](const std::vector<std::pair<bedrocktoolsplus::sdk::Vec3, bedrocktoolsplus::sdk::Vec3>>& lines, uint32_t color) {
         if (lines.empty()) return;
         float r = ((color >> 16) & 0xFF) / 255.0f;
         float g = ((color >>  8) & 0xFF) / 255.0f;
@@ -185,8 +185,8 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
         s_tessColor(tessellator, r, g, b, a);
         
         for (const auto& line : lines) {
-            bedrocktools::sdk::Vec3 p1 = line.first;
-            bedrocktools::sdk::Vec3 p2 = line.second;
+            bedrocktoolsplus::sdk::Vec3 p1 = line.first;
+            bedrocktoolsplus::sdk::Vec3 p2 = line.second;
             p1.x -= camX; p1.y -= camY; p1.z -= camZ;
             p2.x -= camX; p2.y -= camY; p2.z -= camZ;
             s_tessVertex(tessellator, p1.x, p1.y, p1.z);
@@ -202,7 +202,7 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
     const float top = 320.0f;
     const int chunkSize = 16;
     
-    bedrocktools::sdk::Vec3 anchor = {
+    bedrocktoolsplus::sdk::Vec3 anchor = {
         std::floor(g_playerPos.x / 16.0f) * 16.0f,
         0.0f,
         std::floor(g_playerPos.z / 16.0f) * 16.0f
@@ -215,28 +215,28 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
     uint32_t midCol = g_chunkBorderMod->midColor;
     uint32_t adjCol = g_chunkBorderMod->adjColor;
 
-    std::vector<std::pair<bedrocktools::sdk::Vec3, bedrocktools::sdk::Vec3>> cornerLines;
-    std::vector<std::pair<bedrocktools::sdk::Vec3, bedrocktools::sdk::Vec3>> midLines;
-    std::vector<std::pair<bedrocktools::sdk::Vec3, bedrocktools::sdk::Vec3>> adjLines;
+    std::vector<std::pair<bedrocktoolsplus::sdk::Vec3, bedrocktoolsplus::sdk::Vec3>> cornerLines;
+    std::vector<std::pair<bedrocktoolsplus::sdk::Vec3, bedrocktoolsplus::sdk::Vec3>> midLines;
+    std::vector<std::pair<bedrocktoolsplus::sdk::Vec3, bedrocktoolsplus::sdk::Vec3>> adjLines;
 
     if (hls > 0) {
         for (int i = 0; i <= chunkSize / hls; ++i) {
             const float offset = static_cast<float>(i * hls);
             auto& targetList = (i % (chunkSize / hls) == 0) ? cornerLines : midLines;
 
-            targetList.push_back({bedrocktools::sdk::Vec3(anchor.x + offset, bottom, anchor.z), bedrocktools::sdk::Vec3(anchor.x + offset, top, anchor.z)});
-            targetList.push_back({bedrocktools::sdk::Vec3(anchor.x + offset, bottom, anchor.z + chunkSize), bedrocktools::sdk::Vec3(anchor.x + offset, top, anchor.z + chunkSize)});
-            targetList.push_back({bedrocktools::sdk::Vec3(anchor.x, bottom, anchor.z + offset), bedrocktools::sdk::Vec3(anchor.x, top, anchor.z + offset)});
-            targetList.push_back({bedrocktools::sdk::Vec3(anchor.x + static_cast<float>(chunkSize), bottom, anchor.z + offset), bedrocktools::sdk::Vec3(anchor.x + static_cast<float>(chunkSize), top, anchor.z + offset)});
+            targetList.push_back({bedrocktoolsplus::sdk::Vec3(anchor.x + offset, bottom, anchor.z), bedrocktoolsplus::sdk::Vec3(anchor.x + offset, top, anchor.z)});
+            targetList.push_back({bedrocktoolsplus::sdk::Vec3(anchor.x + offset, bottom, anchor.z + chunkSize), bedrocktoolsplus::sdk::Vec3(anchor.x + offset, top, anchor.z + chunkSize)});
+            targetList.push_back({bedrocktoolsplus::sdk::Vec3(anchor.x, bottom, anchor.z + offset), bedrocktoolsplus::sdk::Vec3(anchor.x, top, anchor.z + offset)});
+            targetList.push_back({bedrocktoolsplus::sdk::Vec3(anchor.x + static_cast<float>(chunkSize), bottom, anchor.z + offset), bedrocktoolsplus::sdk::Vec3(anchor.x + static_cast<float>(chunkSize), top, anchor.z + offset)});
         }
     }
 
     if (vls > 0.0f) {
         for (float y = bottom; y <= top; y += vls) {
-            midLines.push_back({bedrocktools::sdk::Vec3(anchor.x, y, anchor.z), bedrocktools::sdk::Vec3(anchor.x + chunkSize, y, anchor.z)});
-            midLines.push_back({bedrocktools::sdk::Vec3(anchor.x, y, anchor.z), bedrocktools::sdk::Vec3(anchor.x, y, anchor.z + chunkSize)});
-            midLines.push_back({bedrocktools::sdk::Vec3(anchor.x + chunkSize, y, anchor.z), bedrocktools::sdk::Vec3(anchor.x + chunkSize, y, anchor.z + chunkSize)});
-            midLines.push_back({bedrocktools::sdk::Vec3(anchor.x, y, anchor.z + chunkSize), bedrocktools::sdk::Vec3(anchor.x + chunkSize, y, anchor.z + chunkSize)});
+            midLines.push_back({bedrocktoolsplus::sdk::Vec3(anchor.x, y, anchor.z), bedrocktoolsplus::sdk::Vec3(anchor.x + chunkSize, y, anchor.z)});
+            midLines.push_back({bedrocktoolsplus::sdk::Vec3(anchor.x, y, anchor.z), bedrocktoolsplus::sdk::Vec3(anchor.x, y, anchor.z + chunkSize)});
+            midLines.push_back({bedrocktoolsplus::sdk::Vec3(anchor.x + chunkSize, y, anchor.z), bedrocktoolsplus::sdk::Vec3(anchor.x + chunkSize, y, anchor.z + chunkSize)});
+            midLines.push_back({bedrocktoolsplus::sdk::Vec3(anchor.x, y, anchor.z + chunkSize), bedrocktoolsplus::sdk::Vec3(anchor.x + chunkSize, y, anchor.z + chunkSize)});
         }
     }
 
@@ -245,8 +245,8 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
             if (x >= 0 && x <= 1 && z >= 0 && z <= 1) continue;
 
             adjLines.push_back({
-                bedrocktools::sdk::Vec3(anchor.x + x * chunkSize, bottom, anchor.z + z * chunkSize),
-                bedrocktools::sdk::Vec3(anchor.x + x * chunkSize, top, anchor.z + z * chunkSize)
+                bedrocktoolsplus::sdk::Vec3(anchor.x + x * chunkSize, bottom, anchor.z + z * chunkSize),
+                bedrocktoolsplus::sdk::Vec3(anchor.x + x * chunkSize, top, anchor.z + z * chunkSize)
             });
         }
     }
@@ -285,43 +285,43 @@ ChunkBorderModule::~ChunkBorderModule() {
 }
 
 void ChunkBorderModule::onInit() {
-    uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::RenderLevel);
+    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderLevel);
     if (addr != 0) {
         m_patchTarget = (void*)addr;
     }
 
-    uintptr_t tb = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::TessellatorBegin);
+    uintptr_t tb = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TessellatorBegin);
     if (tb) { m_tessBeginAddr = (void*)tb; s_tessBegin = (Tessellator_begin_t)tb; }
 
-    uintptr_t tc = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::TessellatorColor);
+    uintptr_t tc = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TessellatorColor);
     if (tc) { m_tessColorAddr = (void*)tc; s_tessColor = (Tessellator_color_t)tc; }
 
-    uintptr_t tv = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::TessellatorVertex);
+    uintptr_t tv = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TessellatorVertex);
     if (tv) { m_tessVertexAddr = (void*)tv; s_tessVertex = (Tessellator_vertex_t)tv; }
 
-    uintptr_t rm = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::MeshHelpersRenderMeshImmediately2);
+    uintptr_t rm = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::MeshHelpersRenderMeshImmediately2);
     if (rm) {
         s_renderMesh = (MeshHelpers_renderMeshImmediately_t)rm;
     } else {
-        uintptr_t rm5 = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::MeshHelpersRenderMeshImmediately);
+        uintptr_t rm5 = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::MeshHelpersRenderMeshImmediately);
         if (rm5) s_renderMesh = (MeshHelpers_renderMeshImmediately_t)rm5;
     }
 
-    uintptr_t rmg = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::RenderMaterialGroupCommon);
+    uintptr_t rmg = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderMaterialGroupCommon);
     if (rmg) {
         m_renderMaterialGroupAddr = (void*)rmg;
         uintptr_t groupAddr = resolveADRP(reinterpret_cast<uint32_t*>(rmg), 2, 0);
         if (groupAddr) {
-            s_renderMaterialGroup = groupAddr + bedrocktools::sdk::offsets::MaterialGroup::mRenderMaterialGroupOffset;
+            s_renderMaterialGroup = groupAddr + bedrocktoolsplus::sdk::offsets::MaterialGroup::mRenderMaterialGroupOffset;
         }
     }
 
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { s_chunkBorderTickCallback(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_chunkBorderTickCallback(event.player); });
 }
 
 void ChunkBorderModule::applyPatch() {
     if (m_patched || !m_patchTarget) return;
-    bedrocktools::hooks::install(m_patchTarget, (void*)_renderLevel_hook, (void**)&_renderLevel_orig);
+    bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_renderLevel_hook, (void**)&_renderLevel_orig);
     m_patched = true;
 }
 

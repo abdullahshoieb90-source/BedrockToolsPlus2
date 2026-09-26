@@ -1,8 +1,8 @@
 #include "notouchborder.hpp"
 
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
 #include "core/memory/Hooks.hpp"
 
 #include <cstddef>
@@ -30,7 +30,7 @@ public:
 
         m_vector = reinterpret_cast<RawVectorHeader*>(
             reinterpret_cast<std::uintptr_t>(self) +
-            bedrocktools::sdk::offsets::ControlOptionEditorControl::mReservedAreas
+            bedrocktoolsplus::sdk::offsets::ControlOptionEditorControl::mReservedAreas
         );
 
         m_savedBegin = m_vector->begin;
@@ -46,7 +46,7 @@ public:
             m_savedEnd < m_savedBegin ||
             m_savedCapacity < m_savedEnd ||
             ((m_savedEnd - m_savedBegin) %
-             bedrocktools::sdk::offsets::ControlOptionEditorControl::ReservedAreaEntrySize) != 0) {
+             bedrocktoolsplus::sdk::offsets::ControlOptionEditorControl::ReservedAreaEntrySize) != 0) {
             m_vector = nullptr;
             return;
         }
@@ -116,12 +116,12 @@ NoTouchBorderModule::NoTouchBorderModule()
 
 void NoTouchBorderModule::onInit() {
     const std::uintptr_t tickAddress =
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ControlOptionEditorTick);
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ControlOptionEditorTick);
     const std::uintptr_t renderAddress =
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ControlOptionEditorRender);
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ControlOptionEditorRender);
 
     if (tickAddress != 0 && !g_originalEditorTick) {
-        bedrocktools::hooks::install(
+        bedrocktoolsplus::hooks::install(
             reinterpret_cast<void*>(tickAddress),
             reinterpret_cast<void*>(editorTickHook),
             reinterpret_cast<void**>(&g_originalEditorTick)
@@ -129,7 +129,7 @@ void NoTouchBorderModule::onInit() {
     }
 
     if (renderAddress != 0 && !g_originalEditorRender) {
-        bedrocktools::hooks::install(
+        bedrocktoolsplus::hooks::install(
             reinterpret_cast<void*>(renderAddress),
             reinterpret_cast<void*>(editorRenderHook),
             reinterpret_cast<void**>(&g_originalEditorRender)

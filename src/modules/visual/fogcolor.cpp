@@ -1,8 +1,8 @@
 #include "fogcolor.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 #include <cmath>
 
 static void customHSVtoRGB(float h, float s, float v, float& out_r, float& out_g, float& out_b) {
@@ -35,9 +35,9 @@ static void _setupFogPlayer_hook(void* _this, void* a2) {
     }
 
     if (g_fogMod && g_fogMod->enabled) {
-        float* red   = (float*)((uintptr_t)_this + bedrocktools::sdk::offsets::LevelRendererPlayer::mFogColorRed);
-        float* green = (float*)((uintptr_t)_this + bedrocktools::sdk::offsets::LevelRendererPlayer::mFogColorGreen);
-        float* blue  = (float*)((uintptr_t)_this + bedrocktools::sdk::offsets::LevelRendererPlayer::mFogColorBlue);
+        float* red   = (float*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mFogColorRed);
+        float* green = (float*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mFogColorGreen);
+        float* blue  = (float*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mFogColorBlue);
 
         g_fogMod->applyColorsToPointers(red, green, blue);
     }
@@ -73,7 +73,7 @@ FogColorModule::~FogColorModule() {
 
 void FogColorModule::onInit() {
     if (m_patchTarget) return;
-    uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::SetupFogPlayer);
+    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::SetupFogPlayer);
     if (addr != 0) {
         m_patchTarget = (void*)addr;
     }
@@ -81,7 +81,7 @@ void FogColorModule::onInit() {
 
 void FogColorModule::applyPatch() {
     if (m_patched || !m_patchTarget) return;
-    bedrocktools::hooks::install(m_patchTarget, (void*)_setupFogPlayer_hook, (void**)&_setupFogPlayer_orig);
+    bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_setupFogPlayer_hook, (void**)&_setupFogPlayer_orig);
     m_patched = true;
 }
 

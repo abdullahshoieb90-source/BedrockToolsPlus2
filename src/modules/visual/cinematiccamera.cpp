@@ -1,7 +1,7 @@
 #include "cinematiccamera.hpp"
 
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include <pl/ModMenu.hpp>
 #include <pl/ModMenuConfig.hpp>
 
@@ -12,20 +12,20 @@
 
 namespace {
 
-using TurnDeltaFn = void (*)(void*, bedrocktools::sdk::Vec2*);
+using TurnDeltaFn = void (*)(void*, bedrocktoolsplus::sdk::Vec2*);
 
 CinematicCameraModule* moduleInstance = nullptr;
 TurnDeltaFn turnDeltaOriginal = nullptr;
-bedrocktools::hooks::Handle turnDeltaHook = nullptr;
+bedrocktoolsplus::hooks::Handle turnDeltaHook = nullptr;
 
-void turnDeltaDetour(void* self, bedrocktools::sdk::Vec2* delta) {
+void turnDeltaDetour(void* self, bedrocktoolsplus::sdk::Vec2* delta) {
     if (!turnDeltaOriginal) return;
     if (!delta || !moduleInstance) {
         turnDeltaOriginal(self, delta);
         return;
     }
 
-    bedrocktools::sdk::Vec2 modified = *delta;
+    bedrocktoolsplus::sdk::Vec2 modified = *delta;
     moduleInstance->applyTurnDelta(modified);
     turnDeltaOriginal(self, &modified);
 }
@@ -40,7 +40,7 @@ CinematicCameraModule::CinematicCameraModule()
 
 CinematicCameraModule::~CinematicCameraModule() {
     if (turnDeltaHook) {
-        bedrocktools::hooks::remove(turnDeltaHook);
+        bedrocktoolsplus::hooks::remove(turnDeltaHook);
         turnDeltaHook = nullptr;
         turnDeltaOriginal = nullptr;
     }
@@ -49,9 +49,9 @@ CinematicCameraModule::~CinematicCameraModule() {
 
 void CinematicCameraModule::onInit() {
     if (turnDeltaHook) return;
-    const uintptr_t address = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::LocalPlayerApplyTurnDelta);
+    const uintptr_t address = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::LocalPlayerApplyTurnDelta);
     if (!address) return;
-    turnDeltaHook = bedrocktools::hooks::install(
+    turnDeltaHook = bedrocktoolsplus::hooks::install(
         reinterpret_cast<void*>(address),
         reinterpret_cast<void*>(turnDeltaDetour),
         reinterpret_cast<void**>(&turnDeltaOriginal));
@@ -120,7 +120,7 @@ void CinematicCameraModule::resetSmoothing() {
     m_lastTime = std::chrono::steady_clock::now();
 }
 
-void CinematicCameraModule::applyTurnDelta(bedrocktools::sdk::Vec2& delta) {
+void CinematicCameraModule::applyTurnDelta(bedrocktoolsplus::sdk::Vec2& delta) {
     if (!enabled) return;
 
     const ConfigSnapshot config = snapshotConfig();

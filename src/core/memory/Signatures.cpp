@@ -1,11 +1,11 @@
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 
 #include <array>
 #include <string>
 #include <vector>
 #include <pl/memory/Signature.hpp>
 
-namespace bedrocktools::memory {
+namespace bedrocktoolsplus::memory {
 namespace {
 std::array<std::uintptr_t, SignatureCount> addresses{};
 const std::array<SignatureDefinition, SignatureCount> definitions{{

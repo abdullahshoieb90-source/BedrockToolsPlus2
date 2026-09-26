@@ -1,8 +1,8 @@
 #include "breakindicator.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/events/GameModeActionEvent.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/events/GameModeActionEvent.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 #include <cmath>
 #include <cstdint>
 
@@ -29,13 +29,13 @@ BreakIndicatorModule::BreakIndicatorModule()
 }
 
 void BreakIndicatorModule::onInit() {
-    bedrocktools::events::bus().subscribe<bedrocktools::events::GameModeActionEvent>([this](auto& event) {
-        if (event.action == bedrocktools::events::GameModeAction::StartDestroyBlock) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::GameModeActionEvent>([this](auto& event) {
+        if (event.action == bedrocktoolsplus::events::GameModeAction::StartDestroyBlock) {
             m_gameMode = event.gameMode;
             m_breaking = m_gameMode != nullptr;
             m_progress = 0.0f;
             m_lastUpdate = std::chrono::steady_clock::now();
-        } else if (event.action == bedrocktools::events::GameModeAction::StopDestroyBlock &&
+        } else if (event.action == bedrocktoolsplus::events::GameModeAction::StopDestroyBlock &&
                    (!m_gameMode || m_gameMode == event.gameMode)) {
             m_gameMode = nullptr;
             m_breaking = false;
@@ -44,11 +44,11 @@ void BreakIndicatorModule::onInit() {
         }
     });
 
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([this](auto&) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([this](auto&) {
         if (!m_breaking || !m_gameMode) return;
         float progress = *reinterpret_cast<float*>(
             reinterpret_cast<std::uintptr_t>(m_gameMode) +
-            bedrocktools::sdk::offsets::GameMode::mDestroyProgress);
+            bedrocktoolsplus::sdk::offsets::GameMode::mDestroyProgress);
         if (std::isfinite(progress) && progress > 0.0f) {
             m_progress = progress > 1.0f ? 1.0f : progress;
         } else {

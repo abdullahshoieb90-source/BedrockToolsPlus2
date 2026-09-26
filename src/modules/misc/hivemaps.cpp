@@ -14,7 +14,7 @@
 #include <thread>
 #include <utility>
 
-namespace bedrocktools::hive {
+namespace bedrocktoolsplus::hive {
 namespace {
 
 struct CacheEntry {
@@ -46,7 +46,7 @@ std::string lower(std::string value) {
 }
 
 std::filesystem::path cachePath() {
-    std::filesystem::path configPath = bedrocktools::config::ConfigManager::get().getConfigPath();
+    std::filesystem::path configPath = bedrocktoolsplus::config::ConfigManager::get().getConfigPath();
     return configPath.parent_path() / "hive_maps_cache.json";
 }
 

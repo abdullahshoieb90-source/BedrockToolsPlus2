@@ -1,12 +1,12 @@
 #include "speeddisplay.hpp"
 #include "modules/ModuleRegistry.hpp"
-#include <bedrocktools/events/EventBus.hpp>
-#include <bedrocktools/sdk/world/Actor.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/world/Actor.hpp>
 #include <cmath>
 
 static SpeedDisplayModule* g_speedMod = nullptr;
 
-static void s_speedCallback(bedrocktools::sdk::Player* player) {
+static void s_speedCallback(bedrocktoolsplus::sdk::Player* player) {
     if (!g_speedMod || !g_speedMod->enabled || !player) return;
     g_speedMod->updatePosition(player->position());
 }
@@ -34,7 +34,7 @@ SpeedDisplayModule::~SpeedDisplayModule() {
     if (g_speedMod == this) g_speedMod = nullptr;
 }
 
-void SpeedDisplayModule::updatePosition(const bedrocktools::sdk::Vec3& pos) {
+void SpeedDisplayModule::updatePosition(const bedrocktoolsplus::sdk::Vec3& pos) {
     if (m_firstTick) {
         m_lastPos = pos;
         m_firstTick = false;
@@ -66,7 +66,7 @@ void SpeedDisplayModule::updatePosition(const bedrocktools::sdk::Vec3& pos) {
 }
 
 void SpeedDisplayModule::onInit() {
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>([](auto& event) { s_speedCallback(event.player); });
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_speedCallback(event.player); });
 }
 
 void SpeedDisplayModule::onEnable() {

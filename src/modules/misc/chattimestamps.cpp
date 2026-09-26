@@ -1,8 +1,8 @@
 #include "chattimestamps.hpp"
 
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/offsets/UI.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/offsets/UI.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -62,22 +62,22 @@ void addMessageHook(void* guiData, void* guiMessage, std::int32_t profanityFilte
     if (g_chatTimestamps && g_chatTimestamps->enabled && guiMessage) {
         auto* base = static_cast<std::uint8_t*>(guiMessage);
         const auto type = *reinterpret_cast<const std::int32_t*>(
-            base + bedrocktools::sdk::offsets::GuiMessage::Type
+            base + bedrocktoolsplus::sdk::offsets::GuiMessage::Type
         );
 
         if (isDisplayMessageType(type)) {
             const std::string prefix = makeTimestampPrefix();
             auto& fullString = *reinterpret_cast<std::string*>(
-                base + bedrocktools::sdk::offsets::GuiMessage::FullString
+                base + bedrocktoolsplus::sdk::offsets::GuiMessage::FullString
             );
             prependTimestamp(fullString, prefix);
 
             const bool hasFilteredFullString = *reinterpret_cast<const std::uint8_t*>(
-                base + bedrocktools::sdk::offsets::GuiMessage::FilteredFullStringPresent
+                base + bedrocktoolsplus::sdk::offsets::GuiMessage::FilteredFullStringPresent
             ) != 0;
             if (hasFilteredFullString) {
                 auto& filteredFullString = *reinterpret_cast<std::string*>(
-                    base + bedrocktools::sdk::offsets::GuiMessage::FilteredFullString
+                    base + bedrocktoolsplus::sdk::offsets::GuiMessage::FilteredFullString
                 );
                 prependTimestamp(filteredFullString, prefix);
             }
@@ -140,22 +140,22 @@ ChatTimestampsModule::~ChatTimestampsModule() {
 }
 
 void ChatTimestampsModule::onInit() {
-    const auto addMessage = bedrocktools::memory::resolve(
-        bedrocktools::memory::SignatureId::GuiDataAddMessage
+    const auto addMessage = bedrocktoolsplus::memory::resolve(
+        bedrocktoolsplus::memory::SignatureId::GuiDataAddMessage
     );
     if (addMessage && !g_addMessageOriginal) {
-        bedrocktools::hooks::install(
+        bedrocktoolsplus::hooks::install(
             reinterpret_cast<void*>(addMessage),
             reinterpret_cast<void*>(addMessageHook),
             reinterpret_cast<void**>(&g_addMessageOriginal)
         );
     }
 
-    const auto devConsole = bedrocktools::memory::resolve(
-        bedrocktools::memory::SignatureId::GuiDataDisplayDevConsoleMessage
+    const auto devConsole = bedrocktoolsplus::memory::resolve(
+        bedrocktoolsplus::memory::SignatureId::GuiDataDisplayDevConsoleMessage
     );
     if (devConsole && !g_displayDevConsoleMessageOriginal) {
-        bedrocktools::hooks::install(
+        bedrocktoolsplus::hooks::install(
             reinterpret_cast<void*>(devConsole),
             reinterpret_cast<void*>(displayDevConsoleMessageHook),
             reinterpret_cast<void**>(&g_displayDevConsoleMessageOriginal)

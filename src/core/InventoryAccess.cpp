@@ -1,14 +1,14 @@
 #include "InventoryAccess.hpp"
 
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/offsets/Inventory.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/offsets/Inventory.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <string>
 
-namespace bedrocktools::core {
+namespace bedrocktoolsplus::core {
 namespace {
-using namespace bedrocktools::sdk::offsets::Inventory;
+using namespace bedrocktoolsplus::sdk::offsets::Inventory;
 
 template<class T>
 T read(const void* object, std::size_t offset) {

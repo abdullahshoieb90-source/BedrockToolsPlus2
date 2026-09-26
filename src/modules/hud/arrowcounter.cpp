@@ -3,7 +3,7 @@
 #include "core/InventoryAccess.hpp"
 #include "modules/ModuleRegistry.hpp"
 #include <algorithm>
-#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
 #include <charconv>
 #include <string_view>
 
@@ -50,15 +50,15 @@ ArrowCounterModule::ArrowCounterModule()
     : Module("Arrow Counter", "Displays arrows in the main inventory and offhand without double counting.") {}
 
 void ArrowCounterModule::onInit() {
-    bedrocktools::core::InventoryAccess::get().initialize();
-    bedrocktools::events::bus().subscribe<bedrocktools::events::LocalPlayerTickEvent>(
+    bedrocktoolsplus::core::InventoryAccess::get().initialize();
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>(
         [this](auto& event) { updateCount(event.player); }
     );
 }
 
-void ArrowCounterModule::updateCount(bedrocktools::sdk::Player* player) {
+void ArrowCounterModule::updateCount(bedrocktoolsplus::sdk::Player* player) {
     if (!enabled) return;
-    m_count.store(bedrocktools::core::InventoryAccess::get().countItems(player, ItemIdentifier),
+    m_count.store(bedrocktoolsplus::core::InventoryAccess::get().countItems(player, ItemIdentifier),
                   std::memory_order_release);
 }
 

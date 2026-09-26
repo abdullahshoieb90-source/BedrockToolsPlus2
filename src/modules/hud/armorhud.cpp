@@ -3,9 +3,9 @@
 #include "core/memory/Hooks.hpp"
 #include "modules/ModuleRegistry.hpp"
 
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/sdk/input/MoveInput.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/input/MoveInput.hpp>
 #include <pl/memory/Vtable.hpp>
 #include <pl/ModMenuConfig.hpp>
 
@@ -29,8 +29,8 @@ static_assert(sizeof(ActorEquipmentComponent) == 0x10);
 namespace {
 
 constexpr std::size_t SlotCount = 6;
-constexpr std::size_t FillingContainerItemsOffset = bedrocktools::sdk::offsets::Inventory::FillingContainerItems;
-constexpr std::size_t ItemStackSize = bedrocktools::sdk::offsets::Inventory::ItemStackSize;
+constexpr std::size_t FillingContainerItemsOffset = bedrocktoolsplus::sdk::offsets::Inventory::FillingContainerItems;
+constexpr std::size_t ItemStackSize = bedrocktoolsplus::sdk::offsets::Inventory::ItemStackSize;
 constexpr std::size_t MaxContainerSlots = 64;
 constexpr float VanillaItemSize = 16.0f;
 constexpr float HotbarCellWidth = 20.0f;
@@ -143,15 +143,15 @@ ItemStackBaseGetDamageValueFn itemStackBaseGetDamageValue = nullptr;
 ItemStackBaseGetRawNameIdFn itemStackBaseGetRawNameId = nullptr;
 ItemRendererRenderGuiItemNewFn itemRendererRenderGuiItemNew = nullptr;
 ArmorHudModule* moduleInstance = nullptr;
-bedrocktools::hooks::Handle hudRendererHook = nullptr;
+bedrocktoolsplus::hooks::Handle hudRendererHook = nullptr;
 
 constexpr std::array<const char*, SlotCount> HudElementIds{
-    "bedrocktools.armorhud.helmet",
-    "bedrocktools.armorhud.chestplate",
-    "bedrocktools.armorhud.leggings",
-    "bedrocktools.armorhud.boots",
-    "bedrocktools.armorhud.offhand",
-    "bedrocktools.armorhud.mainhand"
+    "bedrocktoolsplus.armorhud.helmet",
+    "bedrocktoolsplus.armorhud.chestplate",
+    "bedrocktoolsplus.armorhud.leggings",
+    "bedrocktoolsplus.armorhud.boots",
+    "bedrocktoolsplus.armorhud.offhand",
+    "bedrocktoolsplus.armorhud.mainhand"
 };
 
 constexpr std::array<const char*, SlotCount> HudElementNames{
@@ -172,84 +172,84 @@ void** getVtable(void* object) {
 
 void* getLocalPlayer(void* client) {
     void** vtable = getVtable(client);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetLocalPlayer]) return nullptr;
-    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetLocalPlayer])(client);
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetLocalPlayer]) return nullptr;
+    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetLocalPlayer])(client);
 }
 
 void* getCarriedItem(void* player) {
     void** vtable = getVtable(player);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::PlayerGetCarriedItem]) return nullptr;
-    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktools::sdk::offsets::VTable::PlayerGetCarriedItem])(player);
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::PlayerGetCarriedItem]) return nullptr;
+    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::PlayerGetCarriedItem])(player);
 }
 
 void* getMinecraftGame(void* client) {
     if (!client) return nullptr;
     void** vtable = getVtable(client);
-    if (vtable && vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetMinecraftGame]) {
-        void* game = reinterpret_cast<void* (*)(void*)>(vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetMinecraftGame])(client);
+    if (vtable && vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetMinecraftGame]) {
+        void* game = reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetMinecraftGame])(client);
         if (game) return game;
     }
-    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(client) + bedrocktools::sdk::offsets::ShulkerPreview::ClientInstanceMinecraftGame);
+    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(client) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ClientInstanceMinecraftGame);
 }
 
 void* getStackItem(void* stack) {
     if (!stack) return nullptr;
-    void* counter = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(stack) + bedrocktools::sdk::offsets::ShulkerPreview::ItemStackBaseItem);
+    void* counter = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(stack) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ItemStackBaseItem);
     if (!counter) return nullptr;
-    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(counter) + bedrocktools::sdk::offsets::ShulkerPreview::SharedCounterPointer);
+    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(counter) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::SharedCounterPointer);
 }
 
 short getMaxDamage(void* item) {
     void** vtable = getVtable(item);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::ItemGetMaxDamage]) return 0;
-    return reinterpret_cast<short (*)(void*)>(vtable[bedrocktools::sdk::offsets::VTable::ItemGetMaxDamage])(item);
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetMaxDamage]) return 0;
+    return reinterpret_cast<short (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetMaxDamage])(item);
 }
 
 unsigned int getItemAnimationFrame(void* item, void* localPlayer, void* stack) {
     if (!item || !localPlayer || !stack) return 0;
     void** vtable = getVtable(item);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::ItemGetAnimationFrameFor]) return 0;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetAnimationFrameFor]) return 0;
     using Fn = unsigned int (*)(void*, void*, int, void*, int);
-    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::ItemGetAnimationFrameFor])(item, localPlayer, 0, stack, 1);
+    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetAnimationFrameFor])(item, localPlayer, 0, stack, 1);
 }
 
 RectangleArea getFullClippingRectangle(void* context) {
     RectangleArea result{};
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle]) return result;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle]) return result;
     using Fn = RectangleArea (*)(void*);
-    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle])(context);
+    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle])(context);
 }
 
 TexturePtr getTexture(void* context, const ResourceLocation& location) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture]) return {};
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture]) return {};
     using Fn = TexturePtr (*)(void*, const ResourceLocation&, bool);
-    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture])(context, location, false);
+    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture])(context, location, false);
 }
 
 void drawImage(void* context, const ClientTexture& texture, const UiVec2& position, const UiVec2& size) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage]) return;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage]) return;
     using Fn = void (*)(void*, const ClientTexture&, const UiVec2&, const UiVec2&, const UiVec2&, const UiVec2&, bool);
     static constexpr UiVec2 uv{0.0f, 0.0f};
     static constexpr UiVec2 uvSize{1.0f, 1.0f};
-    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage])(
+    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage])(
         context, texture, position, size, uv, uvSize, false);
 }
 
 void flushImages(void* context) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages]) return;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages]) return;
     using Fn = void (*)(void*, const Color&, float, const HashedString&);
     static const HashedString material("ui_flush");
     static constexpr Color color{1.0f, 1.0f, 1.0f, 1.0f};
-    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages])(context, color, 1.0f, material);
+    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages])(context, color, 1.0f, material);
 }
 
 void setHudOpacity(void* context, float opacity) {
     if (!context) return;
-    void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktools::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
+    void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
     if (!screenContext) return;
     auto* constantBuffers = *reinterpret_cast<std::byte**>(reinterpret_cast<std::byte*>(screenContext) + 0x20);
     if (!constantBuffers) return;
@@ -317,7 +317,7 @@ int getStackDamage(void* stack) {
 ActorEquipmentComponent* getEquipment(void* player) {
     if (!player) return nullptr;
     auto* context = reinterpret_cast<EntityContext*>(
-        reinterpret_cast<std::uintptr_t>(player) + bedrocktools::sdk::offsets::Actor::mEntityContext);
+        reinterpret_cast<std::uintptr_t>(player) + bedrocktoolsplus::sdk::offsets::Actor::mEntityContext);
     return context->tryGetComponent<ActorEquipmentComponent>();
 }
 
@@ -363,7 +363,7 @@ ArmorHudModule::ArmorHudModule()
 
 ArmorHudModule::~ArmorHudModule() {
     if (hudRendererHook) {
-        bedrocktools::hooks::remove(hudRendererHook);
+        bedrocktoolsplus::hooks::remove(hudRendererHook);
         hudRendererHook = nullptr;
         hudCameraRendererOriginal = nullptr;
     }
@@ -372,20 +372,20 @@ ArmorHudModule::~ArmorHudModule() {
 
 void ArmorHudModule::onInit() {
     baseActorRenderContextCtor = reinterpret_cast<BaseActorRenderContextCtorFn>(
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BaseActorRenderContextCtor));
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BaseActorRenderContextCtor));
     itemStackBaseGetDamageValue = reinterpret_cast<ItemStackBaseGetDamageValueFn>(
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ItemStackBaseGetDamageValue));
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemStackBaseGetDamageValue));
     itemStackBaseGetRawNameId = reinterpret_cast<ItemStackBaseGetRawNameIdFn>(
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ItemStackBaseGetRawNameId));
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemStackBaseGetRawNameId));
     itemRendererRenderGuiItemNew = reinterpret_cast<ItemRendererRenderGuiItemNewFn>(
-        bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ItemRendererRenderGuiItemNew));
+        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemRendererRenderGuiItemNew));
 
     const std::uintptr_t hudRenderer = pl::memory::resolveVtableFunction(
         "17HudCameraRenderer",
-        bedrocktools::sdk::offsets::VTable::HudCameraRendererRender,
+        bedrocktoolsplus::sdk::offsets::VTable::HudCameraRendererRender,
         MinecraftLibrary);
     if (hudRenderer && !hudRendererHook) {
-        hudRendererHook = bedrocktools::hooks::install(
+        hudRendererHook = bedrocktoolsplus::hooks::install(
             reinterpret_cast<void*>(hudRenderer),
             reinterpret_cast<void*>(hudCameraRendererDetour),
             reinterpret_cast<void**>(&hudCameraRendererOriginal));
@@ -607,14 +607,14 @@ void ArmorHudModule::renderNative(void* context, void* client) {
     const RectangleArea full = getFullClippingRectangle(context);
     const bool canRender = surface.width > 0.0f && surface.height > 0.0f && validRectangle(full);
 
-    alignas(16) std::byte baseActorRenderContext[bedrocktools::sdk::offsets::ShulkerPreview::BaseActorRenderContextStorageSize]{};
+    alignas(16) std::byte baseActorRenderContext[bedrocktoolsplus::sdk::offsets::ShulkerPreview::BaseActorRenderContextStorageSize]{};
     void* itemRenderer = nullptr;
     if (canRender) {
-        void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktools::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
+        void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
         void* game = getMinecraftGame(client);
         if (screenContext && game) {
             baseActorRenderContextCtor(baseActorRenderContext, screenContext, client, game);
-            itemRenderer = *reinterpret_cast<void**>(baseActorRenderContext + bedrocktools::sdk::offsets::ShulkerPreview::BaseActorRenderContextItemRenderer);
+            itemRenderer = *reinterpret_cast<void**>(baseActorRenderContext + bedrocktoolsplus::sdk::offsets::ShulkerPreview::BaseActorRenderContextItemRenderer);
         }
     }
 

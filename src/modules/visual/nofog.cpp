@@ -1,8 +1,8 @@
 #include "nofog.hpp"
-#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
 
 static void (*_setupFogPlayer_orig)(void* _this, void* screenContext, float a3);
 static NoFogModule* g_nofogMod = nullptr;
@@ -16,14 +16,14 @@ static void _setupFogPlayer_hook(void* _this, void* screenContext, float a3) {
         uintptr_t base = (uintptr_t)_this;
 
         
-        float* mBaseFogStart = (float*)(base + bedrocktools::sdk::offsets::LevelRendererPlayer::mBaseFogStart);
-        float* mBaseFogEnd   = (float*)(base + bedrocktools::sdk::offsets::LevelRendererPlayer::mBaseFogEnd);
+        float* mBaseFogStart = (float*)(base + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mBaseFogStart);
+        float* mBaseFogEnd   = (float*)(base + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mBaseFogEnd);
         *mBaseFogStart = 999999.0f;
         *mBaseFogEnd   = 1000000.0f;
 
         
        uintptr_t camera_base = (uintptr_t)_this;
-        float* mCurrentFogDensityMax = (float*)(camera_base + bedrocktools::sdk::offsets::LevelRendererPlayer::mCurrentFogDensityMax);
+        float* mCurrentFogDensityMax = (float*)(camera_base + bedrocktoolsplus::sdk::offsets::LevelRendererPlayer::mCurrentFogDensityMax);
         *mCurrentFogDensityMax = 0.0f;
     }
 }
@@ -40,7 +40,7 @@ NoFogModule::~NoFogModule() {
 
 void NoFogModule::onInit() {
     if (m_patchTarget) return;
-    uintptr_t addr = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::SetupFogPlayer); 
+    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::SetupFogPlayer); 
     if (addr != 0) {
         m_patchTarget = (void*)addr;
     }
@@ -48,7 +48,7 @@ void NoFogModule::onInit() {
 
 void NoFogModule::applyPatch() {
     if (m_patched || !m_patchTarget) return;
-    bedrocktools::hooks::install(m_patchTarget, (void*)_setupFogPlayer_hook, (void**)&_setupFogPlayer_orig);
+    bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_setupFogPlayer_hook, (void**)&_setupFogPlayer_orig);
     m_patched = true;
 }
 

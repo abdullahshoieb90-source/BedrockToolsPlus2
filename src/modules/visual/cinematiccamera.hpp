@@ -2,7 +2,7 @@
 
 #include "../Module.hpp"
 
-#include <bedrocktools/sdk/Types.hpp>
+#include <bedrocktoolsplus/sdk/Types.hpp>
 #include <chrono>
 #include <cstdint>
 #include <mutex>
@@ -22,7 +22,7 @@ public:
     void loadConfig(const nlohmann::json& j) override;
     void saveConfig(nlohmann::json& j) override;
 
-    void applyTurnDelta(bedrocktools::sdk::Vec2& delta);
+    void applyTurnDelta(bedrocktoolsplus::sdk::Vec2& delta);
 
 private:
     struct ConfigSnapshot {
@@ -42,7 +42,7 @@ private:
 
     mutable std::mutex m_configMutex;
     mutable std::mutex m_stateMutex;
-    bedrocktools::sdk::Vec2 m_smoothDelta{0.0f, 0.0f};
+    bedrocktoolsplus::sdk::Vec2 m_smoothDelta{0.0f, 0.0f};
     std::chrono::steady_clock::time_point m_lastTime = std::chrono::steady_clock::now();
     bool m_cameraActive = false;
     bool m_keyDown = false;

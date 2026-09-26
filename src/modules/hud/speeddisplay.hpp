@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Module.hpp"
-#include <bedrocktools/sdk/Types.hpp>
+#include <bedrocktoolsplus/sdk/Types.hpp>
 
 class SpeedDisplayModule : public Module {
 public:
@@ -15,13 +15,13 @@ public:
     void loadConfig(const nlohmann::json& j) override;
     void saveConfig(nlohmann::json& j) override;
     
-    void updatePosition(const bedrocktools::sdk::Vec3& pos);
+    void updatePosition(const bedrocktoolsplus::sdk::Vec3& pos);
 
 private:
     float m_currentSpeed = 0.0f;
     bool  m_use3D = false;
     
-    bedrocktools::sdk::Vec3  m_lastPos;
+    bedrocktoolsplus::sdk::Vec3  m_lastPos;
     bool  m_firstTick = true;
     
     float hudPosX = 20.0f;

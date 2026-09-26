@@ -4,10 +4,10 @@
 #include "shulkerpreview.hpp"
 #include <pl/memory/Vtable.hpp>
 #include "core/memory/Hooks.hpp"
-#include <bedrocktools/sdk/Memory.hpp>
-#include <bedrocktools/sdk/Offsets.hpp>
-#include <bedrocktools/memory/Signatures.hpp>
-#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktoolsplus/sdk/Memory.hpp>
+#include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktoolsplus/events/EventBus.hpp>
 
 #include <algorithm>
 #include <array>
@@ -166,7 +166,7 @@ enum class TextAlignment : std::uint8_t {
 };
 
 struct ItemStackStorage {
-    alignas(16) std::byte data[bedrocktools::sdk::offsets::ShulkerPreview::ItemStackStorageSize];
+    alignas(16) std::byte data[bedrocktoolsplus::sdk::offsets::ShulkerPreview::ItemStackStorageSize];
 };
 
 struct ShulkerSlotCache {
@@ -224,26 +224,26 @@ ItemStackBase* asStack(ItemStackStorage& storage) {
 
 void* getStackUserData(ItemStackBase* stack) {
     if (!stack) return nullptr;
-    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(stack) + bedrocktools::sdk::offsets::ShulkerPreview::ItemStackBaseUserData);
+    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(stack) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ItemStackBaseUserData);
 }
 
 Item* getStackItem(ItemStackBase* stack) {
     if (!stack) return nullptr;
-    void* counter = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(stack) + bedrocktools::sdk::offsets::ShulkerPreview::ItemStackBaseItem);
+    void* counter = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(stack) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ItemStackBaseItem);
     if (!counter) return nullptr;
-    return *reinterpret_cast<Item**>(reinterpret_cast<std::byte*>(counter) + bedrocktools::sdk::offsets::ShulkerPreview::SharedCounterPointer);
+    return *reinterpret_cast<Item**>(reinterpret_cast<std::byte*>(counter) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::SharedCounterPointer);
 }
 
 std::uint16_t getItemId(Item* item) {
     if (!item) return 0;
-    return *reinterpret_cast<std::uint16_t*>(reinterpret_cast<std::byte*>(item) + bedrocktools::sdk::offsets::ShulkerPreview::ItemId);
+    return *reinterpret_cast<std::uint16_t*>(reinterpret_cast<std::byte*>(item) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ItemId);
 }
 
 short getItemMaxDamage(Item* item) {
     if (!item) return 0;
     void** vtable = *reinterpret_cast<void***>(item);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::ItemGetMaxDamage]) return 0;
-    return reinterpret_cast<short (*)(Item*)>(vtable[bedrocktools::sdk::offsets::VTable::ItemGetMaxDamage])(item);
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetMaxDamage]) return 0;
+    return reinterpret_cast<short (*)(Item*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetMaxDamage])(item);
 }
 
 // the effect need apply for these only
@@ -262,18 +262,18 @@ void* treeFindNode(void* compound, const char* key, std::size_t length) {
     if (!compound || !nbtTreeFind) return nullptr;
     NbtTreeKey searchKey{key, length};
     auto* base = reinterpret_cast<std::byte*>(compound);
-    void* treeRoot = base + bedrocktools::sdk::offsets::ShulkerPreview::CompoundTagTreeRoot;
-    void* treeEnd = base + bedrocktools::sdk::offsets::ShulkerPreview::CompoundTagTreeEnd;
+    void* treeRoot = base + bedrocktoolsplus::sdk::offsets::ShulkerPreview::CompoundTagTreeRoot;
+    void* treeEnd = base + bedrocktoolsplus::sdk::offsets::ShulkerPreview::CompoundTagTreeEnd;
     void* node = nbtTreeFind(treeRoot, &searchKey);
     return node == treeEnd ? nullptr : node;
 }
 
 std::uint32_t nodeType(void* node) {
-    return *reinterpret_cast<std::uint32_t*>(reinterpret_cast<std::byte*>(node) + bedrocktools::sdk::offsets::ShulkerPreview::NbtNodeType);
+    return *reinterpret_cast<std::uint32_t*>(reinterpret_cast<std::byte*>(node) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::NbtNodeType);
 }
 
 void* nodePayload(void* node) {
-    return reinterpret_cast<std::byte*>(node) + bedrocktools::sdk::offsets::ShulkerPreview::NbtNodePayload;
+    return reinterpret_cast<std::byte*>(node) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::NbtNodePayload;
 }
 
 template <std::size_t N>
@@ -320,7 +320,7 @@ template <std::size_t N>
 bool readIntTag(void* compound, const char (&key)[N], int& output) {
     void* node = treeFindNode(compound, key, N - 1);
     if (!node) return false;
-    auto* value = reinterpret_cast<std::byte*>(node) + bedrocktools::sdk::offsets::ShulkerPreview::NbtNodeNumericValue;
+    auto* value = reinterpret_cast<std::byte*>(node) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::NbtNodeNumericValue;
     switch (nodeType(node)) {
         case 1:
             output = *reinterpret_cast<std::uint8_t*>(value);
@@ -400,50 +400,50 @@ void** getVtable(void* instance) {
 
 float uiGetLineLength(void* context, Font& font, const std::string& text, float size, bool unknown) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetLineLength]) return 0.0f;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetLineLength]) return 0.0f;
     using Fn = float (*)(void*, Font&, const std::string&, float, bool);
-    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetLineLength])(context, font, text, size, unknown);
+    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetLineLength])(context, font, text, size, unknown);
 }
 
 void uiDrawText(void* context, Font& font, const RectangleArea& rectangle, const std::string& text, const mce::Color& color, TextAlignment alignment, float alpha, const TextMeasureData& measure, const CaretMeasureData& caret) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawText]) return;
-    reinterpret_cast<DrawTextFn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawText])(context, font, rectangle, text, color, alignment, alpha, measure, caret);
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawText]) return;
+    reinterpret_cast<DrawTextFn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawText])(context, font, rectangle, text, color, alignment, alpha, measure, caret);
 }
 
 void uiFlushText(void* context, float value, std::optional<float> optionalValue) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushText]) return;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushText]) return;
     using Fn = void (*)(void*, float, std::optional<float>);
-    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushText])(context, value, optionalValue);
+    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushText])(context, value, optionalValue);
 }
 
 void uiDrawImage(void* context, const mce::ClientTexture& texture, const UiVec2& position, const UiVec2& size, const UiVec2& uv, const UiVec2& uvSize, bool tiled) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage]) return;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage]) return;
     using Fn = void (*)(void*, const mce::ClientTexture&, const UiVec2&, const UiVec2&, const UiVec2&, const UiVec2&, bool);
-    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage])(context, texture, position, size, uv, uvSize, tiled);
+    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage])(context, texture, position, size, uv, uvSize, tiled);
 }
 
 void uiFlushImages(void* context, const mce::Color& color, float alpha, const HashedString& material) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages]) return;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages]) return;
     using Fn = void (*)(void*, const mce::Color&, float, const HashedString&);
-    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages])(context, color, alpha, material);
+    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages])(context, color, alpha, material);
 }
 
 void uiFillRectangle(void* context, const RectangleArea& rectangle, const mce::Color& color, float alpha) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFillRectangle]) return;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFillRectangle]) return;
     using Fn = void (*)(void*, const RectangleArea&, const mce::Color&, float);
-    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFillRectangle])(context, rectangle, color, alpha);
+    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFillRectangle])(context, rectangle, color, alpha);
 }
 
 mce::TexturePtr uiGetTexture(void* context, const ResourceLocation& location, bool forceReload) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture]) return {};
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture]) return {};
     using Fn = mce::TexturePtr (*)(void*, const ResourceLocation&, bool);
-    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture])(context, location, forceReload);
+    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture])(context, location, forceReload);
 }
 
 bool hasTexture(const mce::TexturePtr& texture) {
@@ -452,7 +452,7 @@ bool hasTexture(const mce::TexturePtr& texture) {
 //HUD_OPACITY
 void setHudOpacity(void* context, float opacity) {
     if (!context) return;
-    void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktools::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
+    void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
     if (!screenContext) return;
     auto* constantBuffers = *reinterpret_cast<std::byte**>(reinterpret_cast<std::byte*>(screenContext) + 0x20);
     if (!constantBuffers) return;
@@ -553,26 +553,26 @@ bool hasEnchantedItem(int cacheIndex) {
 void* getMinecraftGame(void* client) {
     if (!client) return nullptr;
     void** vtable = getVtable(client);
-    if (vtable && vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetMinecraftGame]) {
-        void* game = reinterpret_cast<void* (*)(void*)>(vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetMinecraftGame])(client);
+    if (vtable && vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetMinecraftGame]) {
+        void* game = reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetMinecraftGame])(client);
         if (game) return game;
     }
-    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(client) + bedrocktools::sdk::offsets::ShulkerPreview::ClientInstanceMinecraftGame);
+    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(client) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ClientInstanceMinecraftGame);
 }
 
 void* getClientLocalPlayer(void* client) {
     if (!client) return nullptr;
     void** vtable = getVtable(client);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetLocalPlayer]) return nullptr;
-    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktools::sdk::offsets::VTable::ClientInstanceGetLocalPlayer])(client);
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetLocalPlayer]) return nullptr;
+    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetLocalPlayer])(client);
 }
 
 unsigned int getItemAnimationFrame(Item* item, void* localPlayer, ItemStackBase* stack) {
     if (!item || !localPlayer || !stack) return 0;
     void** vtable = getVtable(item);
-    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::ItemGetAnimationFrameFor]) return 0;
+    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetAnimationFrameFor]) return 0;
     using Fn = unsigned int (*)(Item*, void*, int, ItemStackBase*, int);
-    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::ItemGetAnimationFrameFor])(item, localPlayer, 0, stack, 1);
+    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetAnimationFrameFor])(item, localPlayer, 0, stack, 1);
 }
 
 void destroyBaseActorRenderContext(void* context) {
@@ -606,14 +606,14 @@ void drawBundleFullnessBar(void* context, float x, float y, int weight) {
 
 void drawIcons(void* context, int cacheIndex, float originX, float originY) {
     if (!baseActorRenderContextCtor || !itemRendererRenderGuiItemNew) return;
-    void* client = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktools::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextClient);
-    void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktools::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
+    void* client = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextClient);
+    void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
     if (!client || !screenContext) return;
     void* game = getMinecraftGame(client);
     if (!game) return;
-    alignas(16) std::byte baseActorRenderContext[bedrocktools::sdk::offsets::ShulkerPreview::BaseActorRenderContextStorageSize]{};
+    alignas(16) std::byte baseActorRenderContext[bedrocktoolsplus::sdk::offsets::ShulkerPreview::BaseActorRenderContextStorageSize]{};
     baseActorRenderContextCtor(baseActorRenderContext, screenContext, client, game);
-    void* itemRenderer = *reinterpret_cast<void**>(baseActorRenderContext + bedrocktools::sdk::offsets::ShulkerPreview::BaseActorRenderContextItemRenderer);
+    void* itemRenderer = *reinterpret_cast<void**>(baseActorRenderContext + bedrocktoolsplus::sdk::offsets::ShulkerPreview::BaseActorRenderContextItemRenderer);
     if (!itemRenderer) {
         destroyBaseActorRenderContext(baseActorRenderContext);
         return;
@@ -704,7 +704,7 @@ void renderPreview(void* context, float x, float y, int cacheIndex, char colorCo
 bool hookVtable(const char* className, void** original, void* replacement, std::size_t slot) {
     const auto target = pl::memory::resolveVtableFunction(className, slot, MinecraftLibrary);
     if (!target) return false;
-    return bedrocktools::hooks::install(reinterpret_cast<void*>(target), replacement, original) != nullptr;
+    return bedrocktoolsplus::hooks::install(reinterpret_cast<void*>(target), replacement, original) != nullptr;
 }
 
 void clearSelection() {
@@ -767,7 +767,7 @@ bool loadSelectedShulker(ItemStackBase* stack) {
     return true;
 }
 
-void handleContainerSlotSelected(const bedrocktools::events::ContainerSlotSelectedEvent& event) {
+void handleContainerSlotSelected(const bedrocktoolsplus::events::ContainerSlotSelectedEvent& event) {
     if (!event.afterSelection) return;
     if (event.cancelled() || !moduleInstance || !moduleInstance->enabled || !containerGetItemStack ||
         !event.controller || event.index < 0 || event.collectionName.empty()) {
@@ -797,8 +797,8 @@ void renderHoverBoxHook(void* self, void* context, void* client, void* area, flo
     if (renderHoverBoxOriginal) renderHoverBoxOriginal(self, context, client, area, value);
     if (!moduleInstance || !moduleInstance->enabled || !moduleInstance->m_followSelectedShulker || !selectedController || !hasShulkerData || !self) return;
     auto* base = reinterpret_cast<std::byte*>(self);
-    selectedAnchorX = *reinterpret_cast<float*>(base + bedrocktools::sdk::offsets::ShulkerPreview::HoverRendererCursorX);
-    selectedAnchorY = *reinterpret_cast<float*>(base + bedrocktools::sdk::offsets::ShulkerPreview::HoverRendererCursorY);
+    selectedAnchorX = *reinterpret_cast<float*>(base + bedrocktoolsplus::sdk::offsets::ShulkerPreview::HoverRendererCursorX);
+    selectedAnchorY = *reinterpret_cast<float*>(base + bedrocktoolsplus::sdk::offsets::ShulkerPreview::HoverRendererCursorY);
     selectedAnchorValid = true;
 }
 
@@ -839,27 +839,27 @@ ShulkerPreviewModule::~ShulkerPreviewModule() {
 
 void ShulkerPreviewModule::onInit() {
     if (m_hooksInstalled) return;
-    bedrocktools::events::bus().subscribe<bedrocktools::events::ScreenStateEvent>([](auto& event) {
-        if (event.screen == bedrocktools::events::ScreenKind::Container && event.phase == bedrocktools::events::ScreenPhase::Closed) {
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::ScreenStateEvent>([](auto& event) {
+        if (event.screen == bedrocktoolsplus::events::ScreenKind::Container && event.phase == bedrocktoolsplus::events::ScreenPhase::Closed) {
             ShulkerPreviewHandleContainerDestroyed(event.controller);
         }
     });
-    nbtTreeFind = reinterpret_cast<NbtTreeFindFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::NbtTreeFind));
-    itemStackBaseLoadItem = reinterpret_cast<ItemStackBaseLoadItemFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ItemStackBaseLoadItem));
-    itemStackBaseGetDamageValue = reinterpret_cast<ItemStackBaseGetDamageValueFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ItemStackBaseGetDamageValue));
-    itemStackBaseGetRawNameId = reinterpret_cast<ItemStackBaseGetRawNameIdFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ItemStackBaseGetRawNameId));
-    baseActorRenderContextCtor = reinterpret_cast<BaseActorRenderContextCtorFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::BaseActorRenderContextCtor));
-    itemRendererRenderGuiItemNew = reinterpret_cast<ItemRendererRenderGuiItemNewFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ItemRendererRenderGuiItemNew));
-    containerGetItemStack = reinterpret_cast<ContainerGetItemStackFn>(bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ContainerScreenControllerGetItemStack));
-    bedrocktools::events::bus().subscribe<bedrocktools::events::ContainerSlotSelectedEvent>(
+    nbtTreeFind = reinterpret_cast<NbtTreeFindFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::NbtTreeFind));
+    itemStackBaseLoadItem = reinterpret_cast<ItemStackBaseLoadItemFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemStackBaseLoadItem));
+    itemStackBaseGetDamageValue = reinterpret_cast<ItemStackBaseGetDamageValueFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemStackBaseGetDamageValue));
+    itemStackBaseGetRawNameId = reinterpret_cast<ItemStackBaseGetRawNameIdFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemStackBaseGetRawNameId));
+    baseActorRenderContextCtor = reinterpret_cast<BaseActorRenderContextCtorFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BaseActorRenderContextCtor));
+    itemRendererRenderGuiItemNew = reinterpret_cast<ItemRendererRenderGuiItemNewFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemRendererRenderGuiItemNew));
+    containerGetItemStack = reinterpret_cast<ContainerGetItemStackFn>(bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ContainerScreenControllerGetItemStack));
+    bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::ContainerSlotSelectedEvent>(
         [](auto& event) { handleContainerSlotSelected(event); }
     );
-    uintptr_t screenRenderAddress = bedrocktools::memory::resolve(bedrocktools::memory::SignatureId::ScreenViewRender);
+    uintptr_t screenRenderAddress = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ScreenViewRender);
     if (screenRenderAddress) {
-        bedrocktools::hooks::install(reinterpret_cast<void*>(screenRenderAddress), reinterpret_cast<void*>(screenViewRenderHook), reinterpret_cast<void**>(&screenViewRenderOriginal));
+        bedrocktoolsplus::hooks::install(reinterpret_cast<void*>(screenRenderAddress), reinterpret_cast<void*>(screenViewRenderHook), reinterpret_cast<void**>(&screenViewRenderOriginal));
     }
-    hookVtable("17HoverTextRenderer", reinterpret_cast<void**>(&renderHoverBoxOriginal), reinterpret_cast<void*>(renderHoverBoxHook), bedrocktools::sdk::offsets::VTable::HoverTextRendererRenderHoverBox);
-    hookVtable("24MinecraftUIRenderContext", reinterpret_cast<void**>(&drawTextOriginal), reinterpret_cast<void*>(drawTextHook), bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawText);
+    hookVtable("17HoverTextRenderer", reinterpret_cast<void**>(&renderHoverBoxOriginal), reinterpret_cast<void*>(renderHoverBoxHook), bedrocktoolsplus::sdk::offsets::VTable::HoverTextRendererRenderHoverBox);
+    hookVtable("24MinecraftUIRenderContext", reinterpret_cast<void**>(&drawTextOriginal), reinterpret_cast<void*>(drawTextHook), bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawText);
     m_hooksInstalled = true;
 }
 
