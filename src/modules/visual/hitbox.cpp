@@ -126,6 +126,8 @@ static HitResult_getEntity_t              s_hitResultGetEntity = nullptr;
 static Actor_isPlayer_t                   s_actorIsPlayer = nullptr;
 static Actor_isInvisible_t                s_actorIsInvisible = nullptr;
 static Actor_fetchNearbyActorsSorted_t    s_actorFetchNearby = nullptr;
+using GetRuntimeActorList_t = std::vector<void*>(*)(void*);
+static GetRuntimeActorList_t              s_getRuntimeActorList = nullptr;
 
 static MaterialPtr s_matSelection;
 static uintptr_t    s_renderMaterialGroup = 0;
@@ -356,29 +358,55 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
         renderActor(g_localPlayerPtr);
     }
 
+    std::vector<void*> targetActors;
+
     if (s_actorFetchNearby) {
         bedrocktoolsplus::sdk::Vec3 extent = {30.0f, 30.0f, 30.0f};
         ActorVec actors = s_actorFetchNearby(g_localPlayerPtr, &extent, 1);
-
         if (actors.begin && actors.end) {
             for (DistanceSortedActor* it = actors.begin; it < actors.end; ++it) {
-                void* ent = it->mActor;
-                if (!ent || ent == g_localPlayerPtr) continue;
-
-                bool isPlayer = false;
-                if (s_actorIsPlayer) {
-                    isPlayer = s_actorIsPlayer(ent);
+                if (it->mActor && it->mActor != g_localPlayerPtr) {
+                    targetActors.push_back(it->mActor);
                 }
-
-                if (isPlayer && !g_hitboxMod->showPlayers) continue;
-
-                if (!isPlayer && (!g_hitboxMod->showEntities || !hasCategory(ent, 2))) continue;
-
-                if (s_actorIsInvisible && s_actorIsInvisible(ent)) continue;
-
-                renderActor(ent);
             }
         }
+    } else if (levelPtr && s_getRuntimeActorList) {
+        void* actorManager = *(void**)(levelPtr + bedrocktoolsplus::sdk::offsets::Level::mActorManager);
+        if (actorManager) {
+            std::vector<void*> actors = s_getRuntimeActorList(actorManager);
+            for (void* ent : actors) {
+                if (!ent || ent == g_localPlayerPtr) continue;
+
+                // Check distance within 30 blocks
+                AABB entAabb = getActorAABB(ent);
+                if (entAabb.min.x == 0.f && entAabb.min.y == 0.f && entAabb.min.z == 0.f &&
+                    entAabb.max.x == 0.f && entAabb.max.y == 0.f && entAabb.max.z == 0.f) continue;
+
+                float ex = (entAabb.min.x + entAabb.max.x) * 0.5f - localPos.x;
+                float ey = (entAabb.min.y + entAabb.max.y) * 0.5f - localPos.y;
+                float ez = (entAabb.min.z + entAabb.max.z) * 0.5f - localPos.z;
+                if (ex * ex + ey * ey + ez * ez <= 900.0f) {
+                    targetActors.push_back(ent);
+                }
+            }
+        }
+    }
+
+    for (void* ent : targetActors) {
+        if (!ent || ent == g_localPlayerPtr) continue;
+
+        bool isPlayer = false;
+        if (s_actorIsPlayer) {
+            isPlayer = s_actorIsPlayer(ent);
+        }
+
+        if (isPlayer && !g_hitboxMod->showPlayers) continue;
+
+        if (!isPlayer && (!g_hitboxMod->showEntities || (!hasCategory(ent, 2) && hasCategory(ent, 0)))) continue;
+
+        if (s_actorIsInvisible && s_actorIsInvisible(ent)) continue;
+
+        renderActor(ent);
     }
 
     colorHolder[0] = savedColor[0];
@@ -449,13 +477,25 @@ void HitboxModule::onInit() {
     uintptr_t afn = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorFetchNearbyActorsSorted);
     if (afn) s_actorFetchNearby = (Actor_fetchNearbyActorsSorted_t)afn;
 
+    uintptr_t aml = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorManagerList);
+    if (aml) s_getRuntimeActorList = (GetRuntimeActorList_t)aml;
+
     bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_hitboxTickCallback(event.player); });
 }
 
 void HitboxModule::applyPatch() {
-    if (m_patched || !m_patchTarget) return;
-    bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_renderLevel_hook, (void**)&_renderLevel_orig);
-    m_patched = true;
+    if (m_patched) return;
+    if (!m_patchTarget) {
+        uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderLevel);
+        if (addr != 0) {
+            m_patchTarget = (void*)addr;
+        }
+    }
+    if (!m_patchTarget) return;
+
+    if (bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_renderLevel_hook, (void**)&_renderLevel_orig)) {
+        m_patched = true;
+    }
 }
 
 void HitboxModule::onEnable() {
@@ -463,6 +503,7 @@ void HitboxModule::onEnable() {
 }
 
 void HitboxModule::onDisable() {
+    g_localPlayerPtr = nullptr;
 }
 
 void HitboxModule::loadConfig(const nlohmann::json& j) {
