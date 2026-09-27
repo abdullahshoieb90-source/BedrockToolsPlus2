@@ -5,6 +5,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <cmath>
 #include <cstring>
@@ -18,6 +19,15 @@ namespace {
 // without them only loses the extra safety and not the library load.
 constexpr int kVertexArrayBinding = 0x85B5;
 constexpr int kAttribPosition = 0;
+
+// Present in GLES2 but kept behind a guard so an older NDK header cannot break
+// the build; the two enums are only used to put the blend function back.
+#ifndef GL_BLEND_SRC_RGB
+#define GL_BLEND_SRC_RGB 0x80C9
+#endif
+#ifndef GL_BLEND_DST_RGB
+#define GL_BLEND_DST_RGB 0x80C8
+#endif
 
 const char* kVertexSource =
     "attribute vec3 aPosition;"
