@@ -1,6 +1,6 @@
 #include "lightoverlay.hpp"
 #include <bedrocktoolsplus/memory/Signatures.hpp>
-#include "core/memory/Hooks.hpp"
+#include "core/render/RenderLevelHook.hpp"
 #include <bedrocktoolsplus/sdk/Memory.hpp>
 #include <bedrocktoolsplus/events/EventBus.hpp>
 #include <bedrocktoolsplus/sdk/Offsets.hpp>
@@ -117,7 +117,6 @@ static MeshHelpers_renderMeshImmediately_t s_renderMesh = nullptr;
 static MaterialPtr s_matSelection;
 static uintptr_t    s_renderMaterialGroup = 0;
 
-static void (*_renderLevel_orig)(void* _this, void* screenContext, void* a3);
 
 static bedrocktoolsplus::sdk::Vec3 g_playerPos = {0.f, 0.f, 0.f};
 static void* g_localPlayer = nullptr;
@@ -243,11 +242,8 @@ static void drawNumber(void* tessellator, int number, bedrocktoolsplus::sdk::Vec
     }
 }
 
-static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
-    if (!g_lightOverlayMod || !g_lightOverlayMod->enabled) {
-        if (_renderLevel_orig) _renderLevel_orig(_this, screenContext, a3);
-        return;
-    }
+static void s_lightOverlayRender(void* _this, void* screenContext, void* a3) {
+    if (!g_lightOverlayMod || !g_lightOverlayMod->enabled) return;
 
     if (!g_localPlayer) {
         
@@ -366,17 +362,12 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
         }
     }
 
-    if (_renderLevel_orig) {
-        _renderLevel_orig(_this, screenContext, a3);
-    }
 }
 
 LightOverlayModule::LightOverlayModule()
     : Module("Light Overlay", "Displays the light level of blocks on their faces.") {
     
     showInMenu = true;
-    m_patched = false;
-    m_patchTarget = nullptr;
     m_tessBeginAddr = nullptr;
     m_tessColorAddr = nullptr;
     m_tessVertexAddr = nullptr;
@@ -391,11 +382,6 @@ LightOverlayModule::~LightOverlayModule() {
 }
 
 void LightOverlayModule::onInit() {
-    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderLevel);
-    if (addr != 0) {
-        m_patchTarget = (void*)addr;
-    }
-
     uintptr_t tb = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TessellatorBegin);
     if (tb) { m_tessBeginAddr = (void*)tb; s_tessBegin = (Tessellator_begin_t)tb; }
 
@@ -432,20 +418,13 @@ void LightOverlayModule::onInit() {
     uintptr_t isb = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BlockSourceIsSolidBlockingBlock);
     if (isb) s_isSolidBlockingBlock = (BlockSource_isSolidBlockingBlock_t)isb;
 
+    bedrocktoolsplus::core::renderlevel::addCallback(&s_lightOverlayRender);
+
     bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_lightOverlayTickCallback(event.player); });
 }
 
-void LightOverlayModule::applyPatch() {
-    if (m_patched) return;
-    if (!m_patchTarget) {
-        return;
-    }
-    bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_renderLevel_hook, (void**)&_renderLevel_orig);
-    m_patched = true;
-}
-
 void LightOverlayModule::onEnable() {
-    applyPatch();
+    bedrocktoolsplus::core::renderlevel::install();
 }
 
 void LightOverlayModule::onDisable() {

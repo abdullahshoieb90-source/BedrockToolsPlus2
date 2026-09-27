@@ -27,10 +27,6 @@ public:
     int dangerThreshold = 7; 
 
 private:
-    void applyPatch();
-
-    bool m_patched;
-    void* m_patchTarget;
 
     void* m_tessBeginAddr;
     void* m_tessColorAddr;
