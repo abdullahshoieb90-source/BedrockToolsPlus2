@@ -26,9 +26,6 @@ public:
     void clearTrail();
 
 private:
-    bool m_patched;
-    void* m_patchTarget;
-
     void* m_tessBeginAddr;
     void* m_tessColorAddr;
     void* m_tessVertexAddr;
@@ -36,5 +33,4 @@ private:
     void* m_renderMeshAddr;
     void* m_renderMesh2Addr;
 
-    void applyPatch();
 };

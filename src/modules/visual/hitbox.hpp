@@ -29,13 +29,8 @@ public:
     uint32_t lookLineColor = 0xFF0000FF; 
 
 private:
-    bool m_patched;
-    void* m_patchTarget;
-
     void* m_tessBeginAddr;
     void* m_tessColorAddr;
     void* m_tessVertexAddr;
     void* m_renderMaterialGroupAddr;
-
-    void applyPatch();
 };

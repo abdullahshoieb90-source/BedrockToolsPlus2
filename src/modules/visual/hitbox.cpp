@@ -1,9 +1,10 @@
 #include "hitbox.hpp"
 #include <bedrocktoolsplus/memory/Signatures.hpp>
-#include "core/memory/Hooks.hpp"
+#include "core/render/RenderLevelHook.hpp"
 #include <bedrocktoolsplus/sdk/Memory.hpp>
 #include <bedrocktoolsplus/events/EventBus.hpp>
 #include <bedrocktoolsplus/sdk/Offsets.hpp>
+#include <bedrocktoolsplus/sdk/world/Level.hpp>
 #include <cmath>
 #include <string>
 #include <cstring>
@@ -130,7 +131,6 @@ static Actor_fetchNearbyActorsSorted_t    s_actorFetchNearby = nullptr;
 static MaterialPtr s_matSelection;
 static uintptr_t    s_renderMaterialGroup = 0;
 
-static void (*_renderLevel_orig)(void* _this, void* screenContext, void* a3);
 
 static bedrocktoolsplus::sdk::Vec3 g_playerPos = {0.f, 0.f, 0.f};
 static void* g_localPlayerPtr = nullptr;
@@ -141,7 +141,9 @@ struct AABB {
 };
 
 static void s_hitboxTickCallback(void* _this) {
-    if (!g_hitboxMod || !g_hitboxMod->enabled) return;
+    if (!g_hitboxMod) return;
+
+    if (!g_hitboxMod->enabled) return;
     g_localPlayerPtr = _this;
     uintptr_t svc = *(uintptr_t*)((uintptr_t)_this + bedrocktoolsplus::sdk::offsets::Actor::mStateVectorComponent);
     if (svc != 0) {
@@ -201,11 +203,7 @@ static bool hasCategory(void* actor, uint32_t categoryBit) {
 
 
 
-static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
-    if (_renderLevel_orig) {
-        _renderLevel_orig(_this, screenContext, a3);
-    }
-
+static void s_hitboxRender(void* _this, void* screenContext, void* a3) {
     if (!g_hitboxMod || !g_hitboxMod->enabled) return;
     if (!g_localPlayerPtr) return;
     if (!s_tessBegin || !s_tessColor || !s_tessVertex || !s_renderMesh) return;
@@ -287,11 +285,13 @@ static void _renderLevel_hook(void* _this, void* screenContext, void* a3) {
     void* selectedEntity = nullptr;
     uintptr_t levelPtr = *(uintptr_t*)((uintptr_t)g_localPlayerPtr + bedrocktoolsplus::sdk::offsets::Actor::mLevel);
     if (levelPtr && s_hitResultGetEntity) {
-        uintptr_t hitResultWrapper = levelPtr + bedrocktoolsplus::sdk::offsets::Level::mHitResultWrapper;
-        void* hitResult = (void*)(hitResultWrapper + bedrocktoolsplus::sdk::offsets::HitResultWrapper::mHitResult);
+        // Level::storedHitResult() resolves the UniqueOwnerPointer. Reading the
+        // member as an embedded wrapper fed unrelated Level memory into
+        // HitResult::getEntity and crashed on entity hits.
+        bedrocktoolsplus::sdk::HitResult* hitResult =
+            reinterpret_cast<bedrocktoolsplus::sdk::Level*>(levelPtr)->storedHitResult();
 
-        int hitType = *(int*)((uintptr_t)hitResult + bedrocktoolsplus::sdk::offsets::HitResult::mType);
-        if (hitType == 1) {
+        if (hitResult && hitResult->type() == 1) {
             selectedEntity = s_hitResultGetEntity(hitResult);
         }
     }
@@ -392,8 +392,6 @@ HitboxModule::HitboxModule()
 
     showInMenu = true;
 
-    m_patched = false;
-    m_patchTarget = nullptr;
     m_tessBeginAddr = nullptr;
     m_tessColorAddr = nullptr;
     m_tessVertexAddr = nullptr;
@@ -406,11 +404,6 @@ HitboxModule::~HitboxModule() {
 }
 
 void HitboxModule::onInit() {
-    uintptr_t addr = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::RenderLevel);
-    if (addr != 0) {
-        m_patchTarget = (void*)addr;
-    }
-
     uintptr_t tb = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::TessellatorBegin);
     if (tb) { m_tessBeginAddr = (void*)tb; s_tessBegin = (Tessellator_begin_t)tb; }
 
@@ -449,17 +442,13 @@ void HitboxModule::onInit() {
     uintptr_t afn = bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ActorFetchNearbyActorsSorted);
     if (afn) s_actorFetchNearby = (Actor_fetchNearbyActorsSorted_t)afn;
 
+    bedrocktoolsplus::core::renderlevel::addCallback(&s_hitboxRender);
+
     bedrocktoolsplus::events::bus().subscribe<bedrocktoolsplus::events::LocalPlayerTickEvent>([](auto& event) { s_hitboxTickCallback(event.player); });
 }
 
-void HitboxModule::applyPatch() {
-    if (m_patched || !m_patchTarget) return;
-    bedrocktoolsplus::hooks::install(m_patchTarget, (void*)_renderLevel_hook, (void**)&_renderLevel_orig);
-    m_patched = true;
-}
-
 void HitboxModule::onEnable() {
-    applyPatch();
+    bedrocktoolsplus::core::renderlevel::install();
 }
 
 void HitboxModule::onDisable() {
