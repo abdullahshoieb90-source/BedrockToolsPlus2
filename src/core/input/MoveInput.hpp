@@ -1,8 +1,8 @@
-#pragma once
+Enter#pragma once
 
-#include <bedrocktoolsplus/sdk/Offsets.hpp>
-#include <bedrocktoolsplus/sdk/Types.hpp>
-#include <bedrocktoolsplus/sdk/world/Actor.hpp>
+#include <bedrocktools/sdk/Offsets.hpp>
+#include <bedrocktools/sdk/Types.hpp>
+#include <bedrocktools/sdk/world/Actor.hpp>
 #include <entt/entt.hpp>
 #include <array>
 #include <cstddef>
@@ -37,7 +37,7 @@ struct entt::entt_traits<BedrockEntityId> : entt::basic_entt_traits<BedrockEntit
     static constexpr std::size_t page_size = ENTT_SPARSE_PAGE;
 };
 
-namespace bedrocktoolsplus::input {
+namespace bedrocktools::input {
 
 enum class MoveInputFlag : std::size_t {
     SneakDown = 0,

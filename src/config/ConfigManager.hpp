@@ -8,7 +8,7 @@
 #include <string>
 #include <thread>
 
-namespace bedrocktoolsplus::config {
+namespace bedrocktools::config {
 
 class ConfigManager {
 public:

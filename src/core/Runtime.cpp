@@ -1,11 +1,12 @@
 #include "Runtime.hpp"
 #include "GameHooks.hpp"
 #include "config/ConfigManager.hpp"
+#include "launcher/ExternalButtonRefresh.hpp"
 #include "launcher/ModuleMenu.hpp"
 #include "modules/ModuleRegistry.hpp"
 #include "core/memory/Hooks.hpp"
-#include <bedrocktoolsplus/events/EventBus.hpp>
-#include <bedrocktoolsplus/memory/Signatures.hpp>
+#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktools/memory/Signatures.hpp>
 #include <pl/Input.hpp>
 #include <atomic>
 #include <cstring>
@@ -14,7 +15,7 @@
 #include <mutex>
 #include <unistd.h>
 
-namespace bedrocktoolsplus::core {
+namespace bedrocktools::core {
 namespace {
 std::atomic_bool enabled = false;
 std::atomic_bool resolved = false;
@@ -23,7 +24,7 @@ std::mutex resolveMutex;
 std::mutex installMutex;
 thread_local bool resolvingFromDlopen = false;
 void* (*dlopenOriginal)(const char*, int) = nullptr;
-bedrocktoolsplus::hooks::Handle dlopenHook = nullptr;
+bedrocktools::hooks::Handle dlopenHook = nullptr;
 bool eventsWired = false;
 int containerDepth = 0;
 int chatDepth = 0;
@@ -70,7 +71,7 @@ bool Runtime::resolveSignatures() {
     std::lock_guard lock(resolveMutex);
     if (resolved.load(std::memory_order_acquire)) return true;
     ResolveGuard guard;
-    const bool ok = bedrocktoolsplus::memory::resolveAll("libminecraftpe.so");
+    const bool ok = bedrocktools::memory::resolveAll("libminecraftpe.so");
     resolved.store(ok, std::memory_order_release);
     return ok;
 }
@@ -78,7 +79,7 @@ bool Runtime::resolveSignatures() {
 void Runtime::wireEvents() {
     if (eventsWired) return;
     eventsWired = true;
-    using namespace bedrocktoolsplus::events;
+    using namespace bedrocktools::events;
     bus().subscribe<FrameEvent>([](auto&) { ModuleRegistry::get().onFrame(); });
     bus().subscribe<MouseInputEvent>([](auto& event) {
         if (ModuleRegistry::get().onMouseEvent(event.button, event.down)) event.cancel();
@@ -94,6 +95,16 @@ void Runtime::wireEvents() {
         bus().publish(event);
         return event.cancelled();
     });
+    pl::input::registerKeyCallback([](const pl::input::KeyEvent& input) {
+        return ModuleRegistry::get().onKeyEvent(input.keyCode, input.isKeyDown);
+    });
+    pl::input::registerTouchCallback([](const pl::input::TouchEvent& input) {
+        // Android MotionEvent actions: 0 = DOWN, 1 = UP, 3 = CANCEL.
+        // Move/pointer-shift events are ignored; modules only track press state.
+        if (input.action != 0 && input.action != 1 && input.action != 3) return false;
+        const bool isDown = input.action == 0;
+        return ModuleRegistry::get().onTouchEvent(input.x, input.y, isDown);
+    });
 }
 
 bool Runtime::install() {
@@ -104,7 +115,7 @@ bool Runtime::install() {
     registerAllModules();
     wireEvents();
     ModuleRegistry::get().initialize();
-    bedrocktoolsplus::config::ConfigManager::get().load();
+    bedrocktools::config::ConfigManager::get().load();
     registerModulesWithLauncher();
     installed.store(true, std::memory_order_release);
     return true;
@@ -116,8 +127,9 @@ void Runtime::minecraftLoaded() {
 }
 
 bool Runtime::load(pl::mod::ModContext& context) {
+    bedrocktools::launcher::setJavaVm(context.javaVm());
     mResourceDirectory = context.resourceDir();
-    bedrocktoolsplus::config::ConfigManager::get().setConfigPath((context.configDir() / "config.json").string());
+    bedrocktools::config::ConfigManager::get().setConfigPath((context.configDir() / "config.json").string());
     if (!launcherContext()) return true;
     void* minecraft = dlopen("libminecraftpe.so", RTLD_NOW | RTLD_NOLOAD);
     if (minecraft) {
@@ -125,11 +137,11 @@ bool Runtime::load(pl::mod::ModContext& context) {
         dlclose(minecraft);
         return true;
     }
-    bedrocktoolsplus::hooks::LibraryHandle libdl = bedrocktoolsplus::hooks::openLibrary("libdl.so");
+    bedrocktools::hooks::LibraryHandle libdl = bedrocktools::hooks::openLibrary("libdl.so");
     if (!libdl) return true;
-    void* symbol = reinterpret_cast<void*>(bedrocktoolsplus::hooks::symbol(libdl, "dlopen"));
-    if (symbol) dlopenHook = bedrocktoolsplus::hooks::install(symbol, reinterpret_cast<void*>(dlopenDetour), reinterpret_cast<void**>(&dlopenOriginal));
-    bedrocktoolsplus::hooks::closeLibrary(libdl);
+    void* symbol = reinterpret_cast<void*>(bedrocktools::hooks::symbol(libdl, "dlopen"));
+    if (symbol) dlopenHook = bedrocktools::hooks::install(symbol, reinterpret_cast<void*>(dlopenDetour), reinterpret_cast<void**>(&dlopenOriginal));
+    bedrocktools::hooks::closeLibrary(libdl);
     return true;
 }
 
@@ -148,13 +160,13 @@ bool Runtime::enable(pl::mod::ModContext&) {
 
 bool Runtime::disable(pl::mod::ModContext&) {
     enabled.store(false, std::memory_order_release);
-    bedrocktoolsplus::config::ConfigManager::get().flush();
+    bedrocktools::config::ConfigManager::get().flush();
     return true;
 }
 
 bool Runtime::unload(pl::mod::ModContext&) {
     enabled.store(false, std::memory_order_release);
-    bedrocktoolsplus::config::ConfigManager::get().flush();
+    bedrocktools::config::ConfigManager::get().flush();
     return true;
 }
 

@@ -3,7 +3,7 @@
 #include <pl/Mod.hpp>
 #include <filesystem>
 
-namespace bedrocktoolsplus::core {
+namespace bedrocktools::core {
 
 class Runtime {
 public:

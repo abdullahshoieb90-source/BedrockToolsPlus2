@@ -1,8 +1,12 @@
 #pragma once
 
 #include "../Module.hpp"
-#include <bedrocktoolsplus/sdk/Types.hpp>
+#include <bedrocktools/sdk/Types.hpp>
 #include <string>
+
+// Hard ceiling for the Hitbox draw ranges (blocks). Keeps the per-frame actor
+// fetch and the per-entity occlusion rays bounded on mobile.
+inline constexpr float kHitboxMaxRange = 200.0f;
 
 class HitboxModule : public Module {
 public:
@@ -12,21 +16,56 @@ public:
     void onInit() override;
     void onEnable() override;
     void onDisable() override;
+    void onFrame() override;
     void loadConfig(const nlohmann::json& j) override;
     void saveConfig(nlohmann::json& j) override;
 
     
     bool showEntities = true;
     bool showPlayers = true;
-    bool showSelf = true;
-    bool showEyeLine = true;
-    bool showLookLine = true;
+    bool showItems = true;
+
+    // Draw distance in blocks, measured from the local player. Players and mobs
+    // share `range` (100 blocks by default); items keep their own, shorter
+    // range so dropped stacks and farms do not flood the screen at distance.
+    // 0 disables the group. Clamped to [0, kHitboxMaxRange] when loading.
+    float range = 100.0f;
+    float itemsRange = 32.0f;
+    uint32_t showItemsColor = 0xFFFFFFFFu;
+    // Draw the local player's own box when the camera is in third person.
+    // First-person (including jumping, where the camera interpolates above
+    // the tick AABB) is skipped so the box does not fill the screen.
+    bool show3rdPerson = false;
+    bool showEyeLine = false;
+    bool showLookLine = false;
     float lookLineLength = 2.0f;
 
+    // Draw every box at the interpolated render position (the position the
+    // entity mesh is drawn at) instead of the raw collision AABB. The raw box
+    // snaps a whole tick of movement ahead of the smoothly rendered body, which
+    // reads as the hitbox lagging behind the player. The interpolation phase
+    // is measured from each actor's own box samples, so a missing tick callback
+    // (gliding with an elytra) can never leave a box frozen behind the player.
+    // Off keeps the old tick-stepped boxes.
+    bool smoothBoxes = true;
+
+    // Line thickness (menu slider units). 1.0 keeps the classic hairline
+    // look; anything above that is drawn as real geometry (beams around
+    // every edge) whose world-space width is lineThickness * 0.01 blocks,
+    // because GL line width is ignored by most mobile GL ES drivers.
+    float lineThickness = 1.0f;
+
     
-    uint32_t hitboxColor = 0xFFFFFFFF;   
-    uint32_t eyeLineColor = 0xFFFF0000;  
+    // Stored as AARRGGBB. Alpha is always forced opaque when loading,
+    // saving, and drawing so changing line thickness never washes the color out.
+    uint32_t hitboxColor = 0xFFFFFFFF;
+    uint32_t eyeLineColor = 0xFFFF0000;
     uint32_t lookLineColor = 0xFF0000FF; 
+
+    bool hitboxIndicator = false;             
+    uint32_t indicatorDefaultColor = 0xFFFFFFFF; 
+    uint32_t indicatorActiveColor = 0xFFFF0000;  
+
 
 private:
     bool m_patched;

@@ -9,7 +9,7 @@ The source is public so people can study how a real LeviLauncher mod is structur
 ## Features
 
 - Native C++20 mod built for LeviLauncher and Preloader
-- 36 configurable modules
+- 55 configurable modules
 - Public headers for Minecraft wrappers, offsets, signatures, and utilities
 - Typed event system with runtime subscriptions for other native mods
 - LeviLauncher mod-menu integration and persistent configuration
@@ -17,20 +17,108 @@ The source is public so people can study how a real LeviLauncher mod is structur
 
 ## Modules
 
-**Visual:** Fullbright, Motion Blur, Fog Color, Glint Color, TNT Timer, NoFog, View Model, Third Person Nametag, Chunk Border, Hitbox, Zoom, Breadcrumbs, FPS Unlocker, Light Overlay, ShulkerPreview, Connected Glass
+**Visual:** Fullbright, Motion Blur, Fog Color, Glint Color, TNT Timer, NoFog, View Model, Third Person Nametag, Chunk Border, Hitbox, Block Outline, Zoom, Breadcrumbs, FPS Unlocker, Light Overlay, ShulkerPreview, Connected Glass, Swing Modifier, Wings
 
-**HUD:** Ping Counter, Reach Counter, Combo Display, Break Indicator, Player Coords, Compass, Speed Display, Debug Menu, Keystrokes, Tablist
+**HUD:** Ping Counter, Reach Counter, Combo Display, Break Indicator, Player Coords, Compass, Speed Display, Effect Display, Debug Menu, Keystrokes, Tablist, Crosshair, ArmorHUD, Armor, Hotbar Slots, Inventory HUD, World Time, Arrow Counter, Totem Counter
 
-**Player:** Time Changer, Weather Changer, Nick, Skin Stealer, AutoGG, AutoReQ
+**Player:** Time Changer, Weather Changer, Nick, Skin Stealer, AutoGG, AutoReQ, AutoSprint, Quick Loot, Custom Capes
 
-**Misc:** No Disconnect, Chat Timestamps, No Touch Border, CPS Limiter
+**Misc:** No Disconnect, Chat Timestamps, No Touch Border, CPS Limiter, Hit Sound, ForceGlobalRP, CommentKey, Command Hotkey, Hive Utils
+
+## Hitbox
+
+**Hitbox** draws the collision boxes of nearby entities and players, plus optional eye and look lines, as a world-space overlay.
+
+- Boxes are drawn at the interpolated render position the game draws each entity at, not at the raw collision AABB. The raw box snaps a whole tick of movement ahead of the smoothly moving body, which reads as the hitbox lagging behind the player; **Smooth Boxes** (on by default) derives the interpolation phase from each entity's own box samples, so a stalled tick callback (for example while gliding with a firework-boosted elytra) can never leave a box frozen behind the player. Turning it off gives the plain tick boxes back.
+- **Show Entities**, **Show Players** and **Show Items** pick which groups are drawn, **Hitbox Color** and **Show Items Color** style them, and **Line Thickness** above 1 draws real camera-facing geometry because most mobile GLES drivers ignore native line width.
+- **Range** sets how far players and mobs are drawn (100 blocks by default, 0 disables the group, ceiling 200), measured as a sphere around you. **Items Range** (32 blocks by default) keeps dropped stacks and farms from flooding the screen; both are clamped on load.
+- **Show 3rd Person** adds your own box while the camera is behind you, **Show Eye Line** and **Show Look Line** annotate every box, and **Hitbox Indicator** recolors the box under your crosshair with **Indicator Active Color** / **Indicator Default Color**.
+- Boxes hidden behind solid blocks are culled, so a wall stops an entity's box from showing through it.
+
+## Block Outline
+
+**Block Outline** draws a configurable world-space overlay over the hard-to-see selected-block border. It only follows the block currently under the crosshair and is entirely client-side.
+
+- **Outline**, **Outline Color**, **Outline Opacity** and **Line Thickness** control the 12 block edges. Thickness uses real camera-facing geometry above the hairline setting, so it works on Android GLES drivers that ignore native line width.
+- **Fill** adds a translucent block overlay. **Fill Face Only** limits it to the face under the crosshair; otherwise all six faces are drawn. **Fill Color** and **Fill Opacity** are independent from the outline.
+- **Rainbow** animates both passes, with **Rainbow Speed** controlling the cycle. **Pulse** smoothly animates their opacity, with a separate **Pulse Speed**.
+- **Through Walls** switches to a no-depth material when the current game build provides it. It is off by default, so terrain normally occludes the overlay.
+
+The target is sampled on the client tick instead of resolving the hit result from the render thread, avoiding frame stalls. Settings and keybind state are persisted in `config.json`.
+
+## Inventory HUD
+
+Shows the 27 slots of your inventory grid on the HUD without opening the inventory. Under **Details** you can toggle **Stack Count** and **Durability Bar**, **Number Text** changes the size and color of the stack counts, and **Slot Background** (on by default) draws a cell behind every slot — empty ones included — so the grid reads like the inventory screen. **Background Color** and **Background Opacity** style those cells.
+
+The module owns a single HUD Editor element, **Inventory Grid**. Armor and the offhand are no longer part of it — they live in the separate **Armor** module below.
+
+## Armor
+
+**Armor** is its own module: it draws your helmet, chestplate, leggings, boots and the offhand item on the HUD, with or without Inventory HUD enabled. It has its own toggle, keybind, settings and HUD Editor element (**Armor & Offhand**), so it can be placed anywhere on screen independently of the inventory grid.
+
+- **Offhand Slot**, **Stack Count** and **Durability Bar** under **Details** control what is drawn on each slot.
+- **Armor Durability Numbers** is on by default and displays each piece's remaining/maximum durability (for example, `220/363`), including fully repaired armor. It works independently of the durability bars, and its labels are part of the armor element.
+- **Slot Background** (on by default) draws a cell behind every armor and offhand slot — empty ones included — so the column reads like the inventory screen. **Background Color** and **Background Opacity** style those cells.
+- **Horizontal Layout** lays the five slots out in a row instead of a column.
+
+Configs saved while armor was still an Inventory HUD option are migrated automatically: the new module inherits the position, size and style you had, and it starts enabled only if **Armor & Offhand** was on.
+
+## Crosshair
+
+**Crosshair** replaces the game's own crosshair with one of 29 shapes drawn at the exact screen center. The **Style** picker is grouped by how the shape reads on screen:
+
+- **Marks** — Dot, Plus, X, T Shape, T Shape Down, Chevron, Arrow, Star
+- **Gapped crosses** — Cross, Cross Dot, Cross X, Vertical, Horizontal
+- **Rings** — Circle, Circle Dot, Circle Cross, Ring Ticks, Broken Ring, Target
+- **Boxes** — Square, Square Dot, Diamond, Triangle, Brackets, Brackets Dot, Grid
+- **Reticles** — Scope, Mil Dots, Converge
+
+Every shape shares the same controls: **Scale** and **Thickness** set the size and the line weight, **Color** plus **Opacity** style it, and **Outline** adds a dark back-pass so bright skies and sand stay readable. **Rgb** animates the hue through the whole wheel with **Rgb Speed** controlling the cycle. **Indicator** recolors the crosshair (with **Indicator Color**) while you are aiming at a mob or another player — the hit test lives in this module, so it works without enabling Hitbox. **Show Third Person** also draws the overlay while the camera is behind or in front of you; it is off by default, like vanilla.
+
+Selecting **Vanilla** gives the crosshair back to the game: the module then only tints the game's own crosshair when the indicator fires (and, on builds that cannot be tinted in place, briefly swaps it for a same-shaped overlay), so exactly one crosshair is ever on screen. New styles are always appended to the picker, so configs saved by an older version keep drawing the same shape.
+
+## Wings
+
+The **Wings** module renders animated 3D wings on your back that flap, idle and glide with your movement. Open the module's **Wing Style** selector to choose a shape:
+
+- **Dragon** — the default articulated membrane wing
+- **Angel** — white feathered blades with gold tips
+- **Demon** — deep-red spiky membrane
+- **Bat** — small dark membrane
+- **Butterfly** — pink/orange panels with blue accents
+- **Phoenix** — fiery orange feathers
+- **Fairy** — small translucent cyan/pink wings
+
+The wings are a world-space overlay (a `RenderLevel` hook + tessellator); they never touch skin memory and only appear from a third-person point of view. Each style is drawn as closed, tapered feather prisms with a rest-pose fan, a backwards sweep and per-face shading, so the wings read as real 3D volume. Developers can preview every style offline (and compare against the legacy renderer) with `./scripts/gen_wings_preview.sh`, which writes PNGs to `build/wings-preview/`.
+
+## Custom Capes
+
+The **Custom Capes** module lets you wear any PNG as a classic cape.
+
+1. Put cape images (`.png`, ideally 64x32 — any other size is scaled automatically) into the `capes` folder next to your `config.json` (`<mod config dir>/capes`, created automatically on first launch along with a sample cape).
+2. (Re)launch the game, open the BedrockToolsPlus mod menu and enable **Custom Capes**.
+3. Pick a file in the module's **Cape** selector — the cape updates in-game immediately. Choose `None` to bring your vanilla cape back.
+
+Images that are not exactly 64x32 are scaled onto the cape's outer back face (`x=1..11, y=1..17` of the 64x32 cape canvas); the inner front face gets a flat lining color instead of a repeat of the image, and the top/bottom/side edge strips pick up the image's edge colors so the cape keeps its visible thickness. Exact 64x32 images are used pixel-for-pixel with no processing.
+
+The change is fully client-side and visual only; it does not affect servers, accounts, or other players. Persona skins are not affected (capes are persona pieces there).
+
+## Hit Sound
+
+The **Hit Sound** module plays a custom sound of your choice every time you land a melee hit on a mob or another player.
+
+1. Put sound files (`.wav`, `.ogg`, `.mp3`, `.m4a` or `.flac` — ideally short one-shot effects; a `Sample Hit.wav` is generated for you on first launch) into the `hitsounds` folder next to your `config.json` (`<mod config dir>/hitsounds`, created automatically on first launch).
+2. (Re)launch the game, open the BedrockToolsPlus mod menu and enable **Hit Sound**.
+3. Pick a file in the module's **Sound** selector — every audio file in the folder shows up there. Choose `None` to keep the vanilla behavior. The **Volume** slider sets how loud the sound plays.
+
+The sound is a purely client-side overlay: the victim's own hurt sound is not cancelled or replaced, and nothing is sent to the server. Files whose names contain a comma are ignored (the menu picker cannot represent them), and sounds that fail to decode on your device are simply skipped.
 
 ## System Requirements
 
 - Android 9 or newer
 - 64-bit ARM device (`arm64-v8a`)
 - [LeviLauncher](https://github.com/LiteLDev/LeviLaunchroid)
-- A Minecraft Bedrock version supported by the BedrockToolsPlus release you are using
+- Minecraft Bedrock **1.26.50** (`1.26.50.4`) — the version declared in `levimod.json`; other builds may work but are untested
 
 ## Installation
 
@@ -56,14 +144,14 @@ xmake -y
 
 The release build produces `libBedrockToolsPlus.so` and `BedrockToolsPlus.levipack` in the xmake target directory.
 
-Public SDK headers are under `include/bedrocktoolsplus`. Shared runtime code lives under `src/core`, while features are kept under `src/modules` by category. Minecraft signatures and offsets are version-specific, so those are the main pieces that normally need updating for a new game build.
+Public SDK headers are under `include/bedrocktools`. Shared runtime code lives under `src/core`, while features are kept under `src/modules` by category. Minecraft signatures and offsets are version-specific, so those are the main pieces that normally need updating for a new game build.
 
 Example event subscription from another native mod:
 
 ```cpp
-#include <bedrocktoolsplus/BedrockToolsPlus.hpp>
+#include <bedrocktools/BedrockToolsPlus.hpp>
 
-bedrocktoolsplus::events::RuntimeListener<bedrocktoolsplus::events::LocalPlayerTickEvent> listener(
+bedrocktools::events::RuntimeListener<bedrocktools::events::LocalPlayerTickEvent> listener(
     [](auto& event) {
         if (!event.player) return;
         auto position = event.player->position();
@@ -83,7 +171,7 @@ Do not use LeviLauncher or BedrockToolsPlus to violate Mojang or Microsoft's use
 
 ## Credits & Acknowledgements
 
-BedrockToolsPlus is made by [RadiantByte](https://github.com/RadiantByte).
+BedrockToolsPlus is made by [RadiantByte](https://github.com/RadiantByte) and maintained by VENOM P2 GM.
 
 Special thanks to [dreamguxiang](https://github.com/dreamguxiang) for helping make this mod possible.
 

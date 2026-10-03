@@ -1,6 +1,6 @@
 #pragma once
 
-namespace bedrocktoolsplus::core::gamehooks {
+namespace bedrocktools::core::gamehooks {
 
 bool install();
 void uninstall();
