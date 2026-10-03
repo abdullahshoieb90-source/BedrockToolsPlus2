@@ -2,9 +2,9 @@
 
 #include <string_view>
 
-namespace bedrocktoolsplus::sdk { class Player; }
+namespace bedrocktools::sdk { class Player; }
 
-namespace bedrocktoolsplus::core {
+namespace bedrocktools::core {
 
 class InventoryAccess {
 public:

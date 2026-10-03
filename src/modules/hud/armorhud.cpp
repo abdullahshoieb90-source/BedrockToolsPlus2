@@ -1,12 +1,10 @@
 #include "armorhud.hpp"
 
-#include "core/memory/Hooks.hpp"
+#include "huditems.hpp"
 #include "modules/ModuleRegistry.hpp"
 
-#include <bedrocktoolsplus/memory/Signatures.hpp>
-#include <bedrocktoolsplus/sdk/Offsets.hpp>
-#include <bedrocktoolsplus/sdk/input/MoveInput.hpp>
-#include <pl/memory/Vtable.hpp>
+#include <bedrocktools/events/EventBus.hpp>
+#include <pl/ModMenu.hpp>
 #include <pl/ModMenuConfig.hpp>
 
 #include <algorithm>
@@ -14,49 +12,42 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
-
-struct ActorEquipmentComponent {
-    void* hand;
-    void* armorContainer;
-};
-
-static_assert(sizeof(ActorEquipmentComponent) == 0x10);
+#include <memory>
 
 namespace {
 
-constexpr std::size_t SlotCount = 6;
-constexpr std::size_t FillingContainerItemsOffset = bedrocktoolsplus::sdk::offsets::Inventory::FillingContainerItems;
-constexpr std::size_t ItemStackSize = bedrocktoolsplus::sdk::offsets::Inventory::ItemStackSize;
-constexpr std::size_t MaxContainerSlots = 64;
+namespace huditems = bedrocktools::huditems;
+namespace layout = bedrocktools::armorhud;
+namespace decor = bedrocktools::slotdecor;
+using layout::ArmorLayout;
+using decor::SlotRect;
+
+constexpr std::size_t SlotCount = ArmorModule::SlotCount;
+constexpr std::size_t MainhandIndex = SlotCount;      // the right hand, one past the column
+constexpr std::size_t SlotTotal = SlotCount + 1;      // armor column slots + the right hand
+constexpr const char* ArmorElementId = "bedrocktools.armorhud.column";
+
+struct EquipmentStacks {
+    std::array<void*, SlotCount> stacks{};
+    void* mainhand = nullptr; // the right hand (the carried item)
+};
+
+// Hotbar cell geometry of the vanilla hotbar sprite: 20x22 GUI pixels per
+// cell around a 16x16 item icon with a (2, 3) inset.
 constexpr float VanillaItemSize = 16.0f;
 constexpr float HotbarCellWidth = 20.0f;
 constexpr float HotbarCellHeight = 22.0f;
 constexpr float HotbarItemInsetX = 2.0f;
 constexpr float HotbarItemInsetY = 3.0f;
 constexpr const char* HotbarTexturePath = "textures/ui/hotbar_1";
-constexpr const char* MinecraftLibrary = "libminecraftpe.so";
-
-struct RectangleArea {
-    float x0;
-    float x1;
-    float y0;
-    float y1;
-};
 
 struct UiVec2 {
     float x;
     float y;
-};
-
-struct Color {
-    float r;
-    float g;
-    float b;
-    float a;
 };
 
 struct ClientTexture {
@@ -105,300 +96,409 @@ public:
     }
 };
 
-class HashedString {
-public:
-    std::uint64_t hash;
-    std::string value;
-    mutable const HashedString* lastMatch;
-
-    explicit HashedString(const char* text)
-        : hash(computeHash(text ? std::string_view(text) : std::string_view())),
-          value(text ? text : ""),
-          lastMatch(nullptr) {}
-
-private:
-    static std::uint64_t computeHash(std::string_view text) {
-        if (text.empty()) return 0;
-        constexpr std::uint64_t offset = 0xCBF29CE484222325ULL;
-        constexpr std::uint64_t prime = 0x100000001B3ULL;
-        std::uint64_t result = offset;
-        for (char character : text) {
-            result = static_cast<std::uint64_t>(static_cast<unsigned char>(character)) ^ (prime * result);
-        }
-        return result;
-    }
-};
-
-using HudCameraRendererFn = void (*)(void*, void*, void*, void*, int);
-using BaseActorRenderContextCtorFn = void (*)(void*, void*, void*, void*);
-using ItemStackBaseGetDamageValueFn = int (*)(void*);
-using ItemStackBaseGetRawNameIdFn = std::string (*)(void*);
-using ItemRendererRenderGuiItemNewFn = std::uint64_t (*)(
-    void*, void*, void*, unsigned int, unsigned char, std::uint64_t,
-    float, float, float, float, float);
-
-HudCameraRendererFn hudCameraRendererOriginal = nullptr;
-BaseActorRenderContextCtorFn baseActorRenderContextCtor = nullptr;
-ItemStackBaseGetDamageValueFn itemStackBaseGetDamageValue = nullptr;
-ItemStackBaseGetRawNameIdFn itemStackBaseGetRawNameId = nullptr;
-ItemRendererRenderGuiItemNewFn itemRendererRenderGuiItemNew = nullptr;
-ArmorHudModule* moduleInstance = nullptr;
-bedrocktoolsplus::hooks::Handle hudRendererHook = nullptr;
-
-constexpr std::array<const char*, SlotCount> HudElementIds{
-    "bedrocktoolsplus.armorhud.helmet",
-    "bedrocktoolsplus.armorhud.chestplate",
-    "bedrocktoolsplus.armorhud.leggings",
-    "bedrocktoolsplus.armorhud.boots",
-    "bedrocktoolsplus.armorhud.offhand",
-    "bedrocktoolsplus.armorhud.mainhand"
-};
-
-constexpr std::array<const char*, SlotCount> HudElementNames{
-    "Helmet", "Chestplate", "Leggings", "Boots", "Offhand", "Main Hand"
-};
-
-constexpr std::array<const char*, SlotCount> HudXKeys{
-    "hudHelmetPosX", "hudChestplatePosX", "hudLeggingsPosX", "hudBootsPosX", "hudOffhandPosX", "hudMainhandPosX"
-};
-
-constexpr std::array<const char*, SlotCount> HudYKeys{
-    "hudHelmetPosY", "hudChestplatePosY", "hudLeggingsPosY", "hudBootsPosY", "hudOffhandPosY", "hudMainhandPosY"
-};
-
 void** getVtable(void* object) {
     return object ? *reinterpret_cast<void***>(object) : nullptr;
 }
 
-void* getLocalPlayer(void* client) {
-    void** vtable = getVtable(client);
-    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetLocalPlayer]) return nullptr;
-    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetLocalPlayer])(client);
-}
+// Local mirrors of the game types passed to flushImages; laid out exactly like
+// the ones huditems.cpp uses for the icon batch.
+struct FlushColor {
+    float r;
+    float g;
+    float b;
+    float a;
+};
 
-void* getCarriedItem(void* player) {
-    void** vtable = getVtable(player);
-    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::PlayerGetCarriedItem]) return nullptr;
-    return reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::PlayerGetCarriedItem])(player);
-}
+class FlushHashedString {
+public:
+    std::uint64_t hash;
+    std::string value;
+    mutable const FlushHashedString* lastMatch;
 
-void* getMinecraftGame(void* client) {
-    if (!client) return nullptr;
-    void** vtable = getVtable(client);
-    if (vtable && vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetMinecraftGame]) {
-        void* game = reinterpret_cast<void* (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ClientInstanceGetMinecraftGame])(client);
-        if (game) return game;
+    explicit FlushHashedString(const char* text)
+        : hash(text ? 0xCBF29CE484222325ULL : 0),
+          value(text ? text : ""),
+          lastMatch(nullptr) {
+        if (!text) return;
+        for (char character : value) {
+            hash = static_cast<std::uint64_t>(static_cast<unsigned char>(character)) ^ (0x100000001B3ULL * hash);
+        }
     }
-    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(client) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ClientInstanceMinecraftGame);
-}
-
-void* getStackItem(void* stack) {
-    if (!stack) return nullptr;
-    void* counter = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(stack) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ItemStackBaseItem);
-    if (!counter) return nullptr;
-    return *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(counter) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::SharedCounterPointer);
-}
-
-short getMaxDamage(void* item) {
-    void** vtable = getVtable(item);
-    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetMaxDamage]) return 0;
-    return reinterpret_cast<short (*)(void*)>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetMaxDamage])(item);
-}
-
-unsigned int getItemAnimationFrame(void* item, void* localPlayer, void* stack) {
-    if (!item || !localPlayer || !stack) return 0;
-    void** vtable = getVtable(item);
-    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetAnimationFrameFor]) return 0;
-    using Fn = unsigned int (*)(void*, void*, int, void*, int);
-    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::ItemGetAnimationFrameFor])(item, localPlayer, 0, stack, 1);
-}
-
-RectangleArea getFullClippingRectangle(void* context) {
-    RectangleArea result{};
-    void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle]) return result;
-    using Fn = RectangleArea (*)(void*);
-    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetFullClippingRectangle])(context);
-}
+};
 
 TexturePtr getTexture(void* context, const ResourceLocation& location) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture]) return {};
+    // The DrawImage probe doubles as a bounds guard: contexts that cannot draw
+    // images never expose GetTexture either, and evaluating it first keeps the
+    // larger GetTexture index untouched on such vtables.
+    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage] ||
+        !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture]) return {};
     using Fn = TexturePtr (*)(void*, const ResourceLocation&, bool);
-    return reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture])(context, location, false);
+    return reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextGetTexture])(context, location, false);
 }
 
 void drawImage(void* context, const ClientTexture& texture, const UiVec2& position, const UiVec2& size) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage]) return;
+    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage]) return;
     using Fn = void (*)(void*, const ClientTexture&, const UiVec2&, const UiVec2&, const UiVec2&, const UiVec2&, bool);
     static constexpr UiVec2 uv{0.0f, 0.0f};
     static constexpr UiVec2 uvSize{1.0f, 1.0f};
-    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage])(
+    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextDrawImage])(
         context, texture, position, size, uv, uvSize, false);
 }
 
 void flushImages(void* context) {
     void** vtable = getVtable(context);
-    if (!vtable || !vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages]) return;
-    using Fn = void (*)(void*, const Color&, float, const HashedString&);
-    static const HashedString material("ui_flush");
-    static constexpr Color color{1.0f, 1.0f, 1.0f, 1.0f};
-    reinterpret_cast<Fn>(vtable[bedrocktoolsplus::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages])(context, color, 1.0f, material);
+    if (!vtable || !vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages]) return;
+    using Fn = void (*)(void*, const FlushColor&, float, const FlushHashedString&);
+    static const FlushHashedString material("ui_flush");
+    static constexpr FlushColor color{1.0f, 1.0f, 1.0f, 1.0f};
+    reinterpret_cast<Fn>(vtable[bedrocktools::sdk::offsets::VTable::MinecraftUIRenderContextFlushImages])(context, color, 1.0f, material);
 }
 
-void setHudOpacity(void* context, float opacity) {
-    if (!context) return;
-    void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
-    if (!screenContext) return;
-    auto* constantBuffers = *reinterpret_cast<std::byte**>(reinterpret_cast<std::byte*>(screenContext) + 0x20);
-    if (!constantBuffers) return;
-    auto* shaderConstantBuffer = *reinterpret_cast<std::byte**>(constantBuffers + 0x150);
-    if (!shaderConstantBuffer) return;
-    auto* opacityPtr = *reinterpret_cast<float**>(shaderConstantBuffer + 0x30);
-    if (!opacityPtr) return;
-    if (*opacityPtr != opacity) {
-        *opacityPtr = opacity;
-        *reinterpret_cast<std::uint8_t*>(shaderConstantBuffer + 0x29) = 1;
+// Helmet, chestplate, leggings, boots, offhand — and the right hand.
+EquipmentStacks getEquipmentColumn(void* player) {
+    EquipmentStacks column;
+    const huditems::EquipmentStacks equipment = huditems::getEquipmentStacks(player);
+    for (std::size_t i = 0; i < layout::ArmorSlotCount; ++i) column.stacks[i] = equipment.armor[i];
+    column.stacks[layout::OffhandIndex] = equipment.offhand;
+    column.mainhand = equipment.mainhand;
+    return column;
+}
+
+// The right-hand slot hangs past the end of the five-slot column (or row),
+// computed here so the shared layout math stays a five-slot one.
+SlotRect mainhandRect(const ArmorLayout& layout) {
+    SlotRect rect = layout::slotRect(layout, layout::OffhandIndex);
+    if (layout.horizontal) rect.x += layout::slotAdvance(layout) + layout.gap;
+    else rect.y += rect.size + layout.gap;
+    return rect;
+}
+
+// Rect of one visible slot: the column's own slots, or the right hand.
+SlotRect slotOrMainhandRect(const ArmorLayout& layout, std::size_t index) {
+    return index < SlotCount ? layout::slotRect(layout, index) : mainhandRect(layout);
+}
+
+void renderListener(void* context, void* client, void* user) {
+    auto* module = static_cast<ArmorModule*>(user);
+    if (module && module->enabled) module->renderNative(context, client);
+}
+
+} // namespace
+
+ArmorModule::ArmorModule()
+    : Module("Armor",
+             "Shows your armor pieces and your hand slots (offhand and right hand) on the HUD, "
+             "with durability bars and numbers.") {
+}
+
+ArmorModule::~ArmorModule() {
+    huditems::removeRenderListener(renderListener, this);
+}
+
+void ArmorModule::onInit() {
+    huditems::initialize();
+    huditems::addRenderListener(renderListener, this);
+
+    // The inventory (and any other container UI) draws the same items at full
+    // size, so the HUD copy is hidden while one is open. The counter tracks
+    // nested opens the same way the runtime's keybind blocker does.
+    bedrocktools::events::bus().subscribe<bedrocktools::events::ScreenStateEvent>([this](auto& event) {
+        if (event.screen != bedrocktools::events::ScreenKind::Container) return;
+        if (event.phase == bedrocktools::events::ScreenPhase::Opened) {
+            m_containerDepth.fetch_add(1, std::memory_order_acq_rel);
+        } else {
+            int depth = m_containerDepth.load(std::memory_order_acquire);
+            while (depth > 0 &&
+                   !m_containerDepth.compare_exchange_weak(depth, depth - 1, std::memory_order_acq_rel)) {
+            }
+        }
+    });
+}
+
+void ArmorModule::onDisable() {
+    clearRuntime();
+    pl::modmenu::submitDrawCommands(moduleId, std::span<const pl::modmenu::DrawCommand>{});
+    pl::modmenu::submitHudEditorElements(moduleId, std::span<const pl::modmenu::HudEditorElement>{});
+}
+
+bool ArmorModule::hiddenByScreen() const {
+    return m_containerDepth.load(std::memory_order_acquire) > 0;
+}
+
+bedrocktools::armorhud::ArmorLayout ArmorModule::armorLayout() const {
+    ArmorLayout value;
+    value.x = hudPosX;
+    value.y = hudPosY;
+    value.slotSize = m_slotSize;
+    value.gap = m_slotGap;
+    value.armorTextSize = m_showArmorDurability ? m_countTextSize : 0.0f;
+    value.horizontal = m_horizontal;
+    return value;
+}
+
+ArmorModule::ConfigSnapshot ArmorModule::snapshotConfig() const {
+    std::lock_guard lock(m_configMutex);
+    ConfigSnapshot config;
+    config.layout = armorLayout();
+    config.showOffhand = m_showOffhand;
+    config.showMainhand = m_showMainhand;
+    config.stackCount = m_showStackCount;
+    config.durability = m_showDurability;
+    config.armorDurability = m_showArmorDurability;
+    config.hideInContainer = m_hideInContainer;
+    config.slotBackground = m_slotBackground;
+    config.slotBgColor = huditems::withOpacity(huditems::parseColor(m_slotBgColor, 0xFF000000u), m_slotBgOpacity);
+    config.hotbarBackground = m_hotbarBackground;
+    config.countTextSize = m_countTextSize;
+    config.countColor = huditems::parseColor(m_countColor, 0xFFFFFFFFu);
+    config.gridSize = m_gridSize;
+    config.gridGap = m_gridGap;
+    config.snapThreshold = m_snapThreshold;
+    config.snapFlags =
+        (m_snapToGrid ? pl::modmenu::HudSnapGrid : pl::modmenu::HudSnapNone) |
+        (m_snapToElements ? pl::modmenu::HudSnapElements : pl::modmenu::HudSnapNone) |
+        (m_snapToScreenCenter ? pl::modmenu::HudSnapScreenCenter : pl::modmenu::HudSnapNone);
+    return config;
+}
+
+void ArmorModule::clearRuntime() {
+    for (auto& slot : m_slots) storeRuntime(slot, nullptr, nullptr, false);
+    storeRuntime(m_mainhandRuntime, nullptr, nullptr, false);
+}
+
+// Publishes what the render thread saw for one slot to onFrame(); a null
+// `item` clears the slot.
+void ArmorModule::storeRuntime(SlotRuntime& runtime, void* stack, void* item, bool wantDurability) {
+    const bool hasItem = item != nullptr;
+    runtime.hasItem.store(hasItem, std::memory_order_release);
+    runtime.count.store(hasItem ? huditems::stackCount(stack) : 0, std::memory_order_release);
+    int damage = 0;
+    int maxDamage = 0;
+    if (hasItem && wantDurability) {
+        maxDamage = huditems::itemMaxDamage(item);
+        if (maxDamage > 0) damage = huditems::stackDamage(stack);
+    }
+    runtime.damage.store(damage, std::memory_order_release);
+    runtime.maxDamage.store(maxDamage, std::memory_order_release);
+}
+
+void ArmorModule::renderNative(void* context, void* client) {
+    const ConfigSnapshot config = snapshotConfig();
+    const bool hidden = config.hideInContainer && hiddenByScreen();
+
+    // Even while hidden the player is still needed to keep the overlay
+    // bookkeeping (counts / durability) current, so only the render setup
+    // is skipped.
+    huditems::IconPainter painter(context, client, !hidden);
+    void* localPlayer = painter.player();
+    if (!localPlayer) {
+        clearRuntime();
+        return;
+    }
+
+    EquipmentStacks equipment = getEquipmentColumn(localPlayer);
+    if (!config.showOffhand) equipment.stacks[layout::OffhandIndex] = nullptr;
+    if (!config.showMainhand) equipment.mainhand = nullptr;
+
+    // Helmet, chestplate, leggings, boots, offhand — then the right hand.
+    std::array<void*, SlotTotal> allStacks{};
+    for (std::size_t i = 0; i < SlotCount; ++i) allStacks[i] = equipment.stacks[i];
+    allStacks[MainhandIndex] = equipment.mainhand;
+
+    std::array<void*, SlotTotal> items{};
+    for (std::size_t i = 0; i < SlotTotal; ++i) {
+        items[i] = huditems::stackItem(allStacks[i]);
+        const bool wantDurability =
+            config.durability || (config.armorDurability && i < layout::OffhandIndex);
+        SlotRuntime& runtime = i < SlotCount ? m_slots[i] : m_mainhandRuntime;
+        storeRuntime(runtime, allStacks[i], items[i], wantDurability);
+    }
+
+    if (!painter.ready()) return;
+
+    // The slot cells are painted before the icons of the same pass, so the
+    // item always stays on top of its background. Cells cover empty slots
+    // too, keeping the element's shape steady while equipment changes.
+    if (config.slotBackground) {
+        for (std::size_t i = 0; i < SlotTotal; ++i) {
+            if (!config.showOffhand && i == layout::OffhandIndex) continue;
+            if (!config.showMainhand && i == MainhandIndex) continue;
+            const SlotRect rect = slotOrMainhandRect(config.layout, i);
+            painter.fillRect(rect.x, rect.y, rect.size, rect.size, config.slotBgColor);
+        }
+    }
+
+    // The vanilla hotbar cells are painted behind the occupied slots of the
+    // same pass, so every icon stays on top of its cell background.
+    if (config.hotbarBackground) {
+        TexturePtr hotbarTexture = getTexture(context, ResourceLocation(HotbarTexturePath));
+        if (hotbarTexture.clientTexture) {
+            const huditems::HudMapping& mapping = painter.mapping();
+            bool renderedBackground = false;
+            for (std::size_t i = 0; i < SlotTotal; ++i) {
+                if (!config.showOffhand && i == layout::OffhandIndex) continue;
+                if (!config.showMainhand && i == MainhandIndex) continue;
+                if (!items[i]) continue;
+
+                const SlotRect rect = slotOrMainhandRect(config.layout, i);
+                const float width = rect.size * mapping.scaleX;
+                const float height = rect.size * mapping.scaleY;
+                const float iconSize = std::max(1.0f, std::min(width, height));
+                const float backgroundWidth = iconSize * HotbarCellWidth / VanillaItemSize;
+                const float backgroundHeight = iconSize * HotbarCellHeight / VanillaItemSize;
+                const float backgroundX = mapping.x(rect.x) - iconSize * HotbarItemInsetX / VanillaItemSize;
+                const float backgroundY = mapping.y(rect.y) - iconSize * HotbarItemInsetY / VanillaItemSize;
+                if (!std::isfinite(backgroundX) || !std::isfinite(backgroundY) ||
+                    !std::isfinite(backgroundWidth) || !std::isfinite(backgroundHeight)) continue;
+
+                drawImage(
+                    context,
+                    hotbarTexture.getClientTexture(),
+                    {backgroundX, backgroundY},
+                    {backgroundWidth, backgroundHeight});
+                renderedBackground = true;
+            }
+            if (renderedBackground) flushImages(context);
+        }
+    }
+
+    // Dyed leather armor (and a few other tinted items) need the HUD opacity
+    // fix pass first, otherwise their tinted pixels come out transparent.
+    if (painter.supportsOpacityFix()) {
+        painter.beginOpacityFixPass();
+        for (std::size_t i = 0; i < SlotTotal; ++i) {
+            if (!items[i] || !huditems::needsTextureOpacityPass(allStacks[i])) continue;
+            const SlotRect rect = slotOrMainhandRect(config.layout, i);
+            painter.drawOpacityFix(allStacks[i], items[i], rect.x, rect.y, rect.size);
+        }
+        painter.endOpacityFixPass();
+    }
+
+    // Only occupied slots are submitted to the ItemRenderer; empty ones cost
+    // nothing.
+    for (std::size_t i = 0; i < SlotTotal; ++i) {
+        if (!items[i]) continue;
+        const SlotRect rect = slotOrMainhandRect(config.layout, i);
+        painter.draw(allStacks[i], items[i], rect.x, rect.y, rect.size);
     }
 }
 
-bool needsTextureOpacityPass(void* stack) {
-    if (!stack || !itemStackBaseGetRawNameId) return false;
-    const std::string name = itemStackBaseGetRawNameId(stack);
-    return name == "leather_helmet" ||
-           name == "leather_chestplate" ||
-           name == "leather_leggings" ||
-           name == "leather_boots" ||
-           name == "firework_star" ||
-           name == "leather_horse_armor";
-}
+void ArmorModule::onFrame() {
+    if (!enabled) return;
 
-bool validRectangle(const RectangleArea& area) {
-    return std::isfinite(area.x0) && std::isfinite(area.x1) && std::isfinite(area.y0) && std::isfinite(area.y1) &&
-           area.x1 > area.x0 && area.y1 > area.y0;
-}
+    const ConfigSnapshot config = snapshotConfig();
 
-void destroyBaseActorRenderContext(void* context) {
-    void** vtable = getVtable(context);
-    if (vtable && vtable[0]) reinterpret_cast<void (*)(void*)>(vtable[0])(context);
-}
-
-std::size_t containerSize(void* container) {
-    if (!container) return 0;
-    auto* bytes = reinterpret_cast<std::byte*>(container);
-    const auto begin = *reinterpret_cast<std::uintptr_t*>(bytes + FillingContainerItemsOffset);
-    const auto end = *reinterpret_cast<std::uintptr_t*>(bytes + FillingContainerItemsOffset + sizeof(void*));
-    if (!begin || end < begin) return 0;
-    const auto span = end - begin;
-    if (span % ItemStackSize != 0) return 0;
-    const auto count = span / ItemStackSize;
-    return count <= MaxContainerSlots ? count : 0;
-}
-
-void* containerStack(void* container, std::size_t slot) {
-    if (!container) return nullptr;
-    auto* bytes = reinterpret_cast<std::byte*>(container);
-    const auto begin = *reinterpret_cast<std::uintptr_t*>(bytes + FillingContainerItemsOffset);
-    const auto end = *reinterpret_cast<std::uintptr_t*>(bytes + FillingContainerItemsOffset + sizeof(void*));
-    if (!begin || end < begin) return nullptr;
-    const auto span = end - begin;
-    if (span % ItemStackSize != 0) return nullptr;
-    const auto count = span / ItemStackSize;
-    if (slot >= count || count > MaxContainerSlots) return nullptr;
-    return reinterpret_cast<void*>(begin + slot * ItemStackSize);
-}
-
-int getStackDamage(void* stack) {
-    if (!stack || !itemStackBaseGetDamageValue) return 0;
-    return std::max(0, itemStackBaseGetDamageValue(stack));
-}
-
-ActorEquipmentComponent* getEquipment(void* player) {
-    if (!player) return nullptr;
-    auto* context = reinterpret_cast<EntityContext*>(
-        reinterpret_cast<std::uintptr_t>(player) + bedrocktoolsplus::sdk::offsets::Actor::mEntityContext);
-    return context->tryGetComponent<ActorEquipmentComponent>();
-}
-
-std::array<void*, SlotCount> getHudStacks(void* player) {
-    std::array<void*, SlotCount> stacks{};
-    ActorEquipmentComponent* equipment = getEquipment(player);
-    if (!equipment) return stacks;
-    void* armor = equipment->armorContainer;
-    void* hand = equipment->hand;
-    if (containerSize(armor) >= 4) {
-        stacks[0] = containerStack(armor, 0);
-        stacks[1] = containerStack(armor, 1);
-        stacks[2] = containerStack(armor, 2);
-        stacks[3] = containerStack(armor, 3);
+    // The editor box always covers the full column so the element can be
+    // placed even while every slot is empty.
+    std::vector<pl::modmenu::HudEditorElement> elements;
+    {
+        pl::modmenu::HudEditorElement element;
+        element.elementId = ArmorElementId;
+        element.displayName = "Armor & Offhand";
+        element.positionKeyX = "hudPosX";
+        element.positionKeyY = "hudPosY";
+        element.x = config.layout.x;
+        element.y = config.layout.y;
+        element.width = std::max(1.0f, layout::columnWidth(config.layout));
+        element.height = std::max(1.0f, layout::columnHeight(config.layout));
+        if (config.showMainhand) {
+            // Grow the box to cover the right-hand slot past the column's end.
+            const SlotRect hand = mainhandRect(config.layout);
+            const float x2 = std::max(element.x + element.width, hand.x + hand.size);
+            const float y2 = std::max(element.y + element.height, hand.y + hand.size);
+            element.x = std::min(element.x, hand.x);
+            element.y = std::min(element.y, hand.y);
+            element.width = x2 - element.x;
+            element.height = y2 - element.y;
+        }
+        element.gridSize = config.gridSize;
+        element.snapThreshold = config.snapThreshold;
+        element.gridGap = config.gridGap;
+        element.snapFlags = config.snapFlags;
+        elements.push_back(std::move(element));
     }
-    if (containerSize(hand) >= 2) stacks[4] = containerStack(hand, 1);
-    stacks[5] = getCarriedItem(player);
-    return stacks;
-}
+    pl::modmenu::submitHudEditorElements(moduleId, elements);
 
-std::uint32_t parseColor(const std::string& value) {
-    if (value.empty()) return 0xFFFFFFFFu;
-    const std::string hex = value[0] == '#' ? value.substr(1) : value;
-    try {
-        if (hex.size() == 6) return 0xFF000000u | static_cast<std::uint32_t>(std::stoul(hex, nullptr, 16));
-        if (hex.size() == 8) return static_cast<std::uint32_t>(std::stoul(hex, nullptr, 16));
-    } catch (...) {
+    std::vector<pl::modmenu::DrawCommand> commands;
+    const bool hidden = config.hideInContainer && hiddenByScreen();
+    if (!hidden && (config.stackCount || config.durability || config.armorDurability)) {
+        auto decorate = [&](const SlotRuntime& runtime, const SlotRect& rect, bool armorSlot) {
+            if (!runtime.hasItem.load(std::memory_order_acquire) || rect.size <= 0.0f) return;
+
+            const int maxDamage = runtime.maxDamage.load(std::memory_order_acquire);
+            const int damage = runtime.damage.load(std::memory_order_acquire);
+            if (config.durability && maxDamage > 0 && damage > 0) {
+                const float ratio = decor::durabilityRatio(damage, maxDamage);
+                const decor::DurabilityBar bar = decor::durabilityBar(rect, ratio);
+
+                pl::modmenu::DrawCommand background;
+                background.type = pl::modmenu::DrawCommandType::RectFilled;
+                background.x = bar.x;
+                background.y = bar.y;
+                background.w = bar.width;
+                background.h = bar.height;
+                background.color = 0xFF000000u;
+                commands.push_back(std::move(background));
+
+                if (bar.fillWidth > 0.0f) {
+                    pl::modmenu::DrawCommand fill;
+                    fill.type = pl::modmenu::DrawCommandType::RectFilled;
+                    fill.x = bar.x;
+                    fill.y = bar.y;
+                    fill.w = bar.fillWidth;
+                    fill.h = bar.fillHeight;
+                    fill.color = decor::durabilityColor(ratio);
+                    commands.push_back(std::move(fill));
+                }
+            }
+
+            // Armor numbers are independent of stack counts and durability
+            // bars, and remain visible for undamaged armor as well.
+            if (armorSlot && config.armorDurability && maxDamage > 0) {
+                pl::modmenu::DrawCommand text;
+                text.type = pl::modmenu::DrawCommandType::Text;
+                text.x = rect.x + rect.size + layout::armorLabelGap(config.layout);
+                text.y = rect.y;
+                text.w = layout::armorLabelWidth(config.layout);
+                text.h = rect.size; // center the label beside this armor icon
+                text.color = config.countColor;
+                text.size = layout::armorLabelTextSize(config.layout);
+                text.text = decor::durabilityText(damage, maxDamage);
+                commands.push_back(std::move(text));
+            }
+
+            const std::uint8_t count = runtime.count.load(std::memory_order_acquire);
+            if (config.stackCount && count > 1) {
+                const decor::TextAnchor anchor = decor::countTextAnchor(rect);
+                pl::modmenu::DrawCommand text;
+                text.type = pl::modmenu::DrawCommandType::Text;
+                text.x = anchor.x;
+                text.y = anchor.y;
+                text.w = -1.0f; // right-aligned at x
+                text.color = config.countColor;
+                text.size = config.countTextSize;
+                text.text = std::to_string(static_cast<unsigned>(count));
+                commands.push_back(std::move(text));
+            }
+        };
+
+        for (std::size_t i = 0; i < SlotCount; ++i) {
+            decorate(m_slots[i], layout::slotRect(config.layout, i), i < layout::OffhandIndex);
+        }
+        decorate(m_mainhandRuntime, mainhandRect(config.layout), false);
     }
-    return 0xFFFFFFFFu;
+    pl::modmenu::submitDrawCommands(moduleId, commands);
 }
 
-void hudCameraRendererDetour(void* self, void* context, void* client, void* value, int pass) {
-    if (hudCameraRendererOriginal) hudCameraRendererOriginal(self, context, client, value, pass);
-    if (moduleInstance && moduleInstance->enabled) moduleInstance->renderNative(context, client);
-}
-
-}
-
-ArmorHudModule::ArmorHudModule()
-    : Module("ArmorHUD", "Displays armor, offhand, and main-hand items with configurable durability information.") {
-    moduleInstance = this;
-}
-
-ArmorHudModule::~ArmorHudModule() {
-    if (hudRendererHook) {
-        bedrocktoolsplus::hooks::remove(hudRendererHook);
-        hudRendererHook = nullptr;
-        hudCameraRendererOriginal = nullptr;
-    }
-    if (moduleInstance == this) moduleInstance = nullptr;
-}
-
-void ArmorHudModule::onInit() {
-    baseActorRenderContextCtor = reinterpret_cast<BaseActorRenderContextCtorFn>(
-        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::BaseActorRenderContextCtor));
-    itemStackBaseGetDamageValue = reinterpret_cast<ItemStackBaseGetDamageValueFn>(
-        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemStackBaseGetDamageValue));
-    itemStackBaseGetRawNameId = reinterpret_cast<ItemStackBaseGetRawNameIdFn>(
-        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemStackBaseGetRawNameId));
-    itemRendererRenderGuiItemNew = reinterpret_cast<ItemRendererRenderGuiItemNewFn>(
-        bedrocktoolsplus::memory::resolve(bedrocktoolsplus::memory::SignatureId::ItemRendererRenderGuiItemNew));
-
-    const std::uintptr_t hudRenderer = pl::memory::resolveVtableFunction(
-        "17HudCameraRenderer",
-        bedrocktoolsplus::sdk::offsets::VTable::HudCameraRendererRender,
-        MinecraftLibrary);
-    if (hudRenderer && !hudRendererHook) {
-        hudRendererHook = bedrocktoolsplus::hooks::install(
-            reinterpret_cast<void*>(hudRenderer),
-            reinterpret_cast<void*>(hudCameraRendererDetour),
-            reinterpret_cast<void**>(&hudCameraRendererOriginal));
-    }
-}
-
-void ArmorHudModule::onMenuRegistered() {
+void ArmorModule::onMenuRegistered() {
     using namespace pl::modmenu;
     ConfigSchemaBuilder schema;
-    schema.defaultCategory("equipment")
-        .category("equipment", "Equipment", "Choose visible items and their sizes")
-        .category("durability", "Durability", "Choose which items show durability and what it contains")
-        .category("text", "Text", "Position and style of durability labels")
+    schema.defaultCategory("column")
+        .category("column", "Column", "Shape and size of the armor element")
+        .category("details", "Details", "Extra information drawn on each slot")
+        .category("visibility", "Visibility", "When the armor element is shown")
         .category("editor", "HUD Editor", "Placement and snapping while editing the HUD");
 
     auto node = [](std::string key, std::string title, std::string category, ConfigControlTypeV2 type) {
@@ -417,505 +517,218 @@ void ArmorHudModule::onMenuRegistered() {
     };
     auto slider = [&](const char* key, std::string title, const char* category,
                       const char* sectionId, const char* min, const char* max,
-                      const char* enabledKey = nullptr) {
+                      const char* unit = " px", const char* enabledKey = nullptr) {
         auto value = node(key, std::move(title), category, ConfigControlTypeV2::SliderFloat);
         value.section = sectionId;
         value.minValue = min;
         value.maxValue = max;
         value.step = "1";
-        value.unit = " px";
+        value.unit = unit;
         if (enabledKey) value.visibleWhen = {{enabledKey, ConfigConditionOpV2::Truthy, {}}};
         schema.node(std::move(value));
     };
 
-    struct SlotSetting { const char* key; const char* title; };
-    static constexpr SlotSetting slots[] = {
-        {"m_helmet", "Helmet"}, {"m_chestplate", "Chestplate"},
-        {"m_leggings", "Leggings"}, {"m_boots", "Boots"},
-        {"m_offhand", "Offhand"}, {"m_mainhand", "Main Hand"}
-    };
-    section("visible_items", "Visible Items", "equipment");
-    auto equipment = node("equipment_slots", "Show Items", "equipment", ConfigControlTypeV2::ToggleGroup);
-    equipment.key.clear();
-    equipment.section = "visible_items";
-    equipment.choiceStyle = ConfigChoiceStyleV2::Chips;
-    for (const auto& slot : slots) equipment.options.push_back({slot.key, slot.title, {}, slot.key});
-    schema.node(std::move(equipment));
-
-    section("item_sizes", "Item Sizes", "equipment");
-    for (const auto& slot : slots) {
-        const std::string key = std::string(slot.key) + "Size";
-        slider(key.c_str(), std::string(slot.title) + " Size", "equipment", "item_sizes", "8", "100", slot.key);
+    section("column_shape", "Layout", "column");
+    {
+        auto horizontal = node("m_horizontal", "Horizontal Layout", "column", ConfigControlTypeV2::Toggle);
+        horizontal.section = "column_shape";
+        horizontal.description = "Lays the armor and offhand out in a row instead of a column.";
+        schema.node(std::move(horizontal));
     }
-    section("appearance", "Appearance", "equipment");
-    auto hotbarBackground = node("m_hotbarBackground", "Hotbar Background", "equipment", ConfigControlTypeV2::Toggle);
-    hotbarBackground.section = "appearance";
-    hotbarBackground.defaultValue = "true";
-    schema.node(std::move(hotbarBackground));
-    section("activation", "Shortcut", "equipment");
-    auto keybind = node("keybind", "Toggle Keybind", "equipment", ConfigControlTypeV2::Keybind);
-    keybind.section = "activation";
-    schema.node(std::move(keybind));
-
-    section("durability_items", "Item Durability", "durability");
-    auto durability = node("durability_slots", "Show Durability For", "durability", ConfigControlTypeV2::ToggleGroup);
-    durability.key.clear();
-    durability.section = "durability_items";
-    durability.description = "Labels appear for enabled items that have durability.";
-    durability.choiceStyle = ConfigChoiceStyleV2::Chips;
-    for (const auto& slot : slots) {
-        const std::string key = std::string(slot.key) + "Durability";
-        durability.options.push_back({key, slot.title, {}, key});
+    slider("m_slotSize", "Slot Size", "column", "column_shape", "8", "100");
+    slider("m_slotGap", "Gap Between Slots", "column", "column_shape", "0", "50");
+    section("activation", "Shortcut", "column");
+    {
+        auto toggleKey = node("keybind", "Toggle Keybind", "column", ConfigControlTypeV2::Keybind);
+        toggleKey.section = "activation";
+        schema.node(std::move(toggleKey));
     }
-    schema.node(std::move(durability));
 
-    section("durability_contents", "Label Contents", "durability");
-    auto contents = node("durability_fields", "Display Values", "durability", ConfigControlTypeV2::ToggleGroup);
-    contents.key.clear();
-    contents.section = "durability_contents";
-    contents.description = "Remaining and maximum combine as remaining / maximum. Percentage shows durability remaining.";
-    contents.choiceStyle = ConfigChoiceStyleV2::Checklist;
-    contents.options = {
-        {"damage", "Damage Taken", {}, "m_showDamage"},
-        {"remaining", "Remaining Durability", {}, "m_showRemaining"},
-        {"maximum", "Maximum Durability", {}, "m_showMaxDurability"},
-        {"percentage", "Percentage Remaining", {}, "m_showPercentage"}
-    };
-    schema.node(std::move(contents));
+    section("slot_details", "Slot Details", "details");
+    {
+        auto features = node("slot_features", "Show", "details", ConfigControlTypeV2::ToggleGroup);
+        features.key.clear();
+        features.section = "slot_details";
+        features.description = "This module is independent of Inventory HUD: enable only what you want to see.";
+        features.choiceStyle = ConfigChoiceStyleV2::Checklist;
+        features.options = {
+            {"offhand", "Offhand Slot", {}, "m_showOffhand"},
+            {"mainhand", "Right Hand", {}, "m_showMainhand"},
+            {"count", "Stack Count", {}, "m_showStackCount"},
+            {"durability", "Durability Bar", {}, "m_showDurability"}
+        };
+        schema.node(std::move(features));
+    }
+    {
+        auto armorNumbers = node("m_showArmorDurability", "Armor Durability Numbers", "details", ConfigControlTypeV2::Toggle);
+        armorNumbers.section = "slot_details";
+        armorNumbers.description = "Shows remaining/maximum durability beside each armor piece, independently of durability bars.";
+        schema.node(std::move(armorNumbers));
+    }
+    section("count_text", "Number Text", "details");
+    slider("m_countTextSize", "Text Size", "details", "count_text", "6", "40");
+    {
+        auto color = node("m_countColor", "Text Color", "details", ConfigControlTypeV2::Color);
+        color.section = "count_text";
+        color.defaultValue = "#FFFFFF";
+        color.description = "Used for stack counts and armor durability numbers.";
+        schema.node(std::move(color));
+    }
+    section("slot_background", "Slot Background", "details");
+    {
+        auto toggle = node("m_slotBackground", "Slot Background", "details", ConfigControlTypeV2::Toggle);
+        toggle.section = "slot_background";
+        toggle.description = "Draws a cell behind every armor and offhand slot, including empty ones, so the column reads like the inventory screen.";
+        schema.node(std::move(toggle));
 
-    section("text_layout", "Label Placement", "text");
-    auto position = node("m_durabilityTextPosition", "Text Position", "text", ConfigControlTypeV2::Choice);
-    position.section = "text_layout";
-    position.choiceStyle = ConfigChoiceStyleV2::Segmented;
-    position.options = {{"0", "Right"}, {"1", "Left"}, {"2", "Below"}};
-    position.defaultValue = "0";
-    schema.node(std::move(position));
-    slider("m_durabilityTextGap", "Distance From Item", "text", "text_layout", "0", "100");
-    section("text_style", "Label Appearance", "text");
-    slider("m_durabilityTextSize", "Text Size", "text", "text_style", "6", "100");
-    auto color = node("m_textColor", "Text Color", "text", ConfigControlTypeV2::Color);
-    color.section = "text_style";
-    color.defaultValue = "#FFFFFF";
-    schema.node(std::move(color));
+        auto opacity = node("m_slotBgOpacity", "Background Opacity", "details", ConfigControlTypeV2::SliderFloat);
+        opacity.section = "slot_background";
+        opacity.minValue = "0.05";
+        opacity.maxValue = "1";
+        opacity.step = "0.05";
+        opacity.visibleWhen = {{"m_slotBackground", ConfigConditionOpV2::Truthy, {}}};
+        schema.node(std::move(opacity));
 
-    auto help = node("editor_help", "Move Items In The HUD Editor", "editor", ConfigControlTypeV2::Info);
+        auto color = node("m_slotBgColor", "Background Color", "details", ConfigControlTypeV2::Color);
+        color.section = "slot_background";
+        color.defaultValue = "#000000";
+        color.visibleWhen = {{"m_slotBackground", ConfigConditionOpV2::Truthy, {}}};
+        color.description = "Color of the cells behind the slots; the opacity slider above sets how strongly they show.";
+        schema.node(std::move(color));
+    }
+
+    section("appearance", "Appearance", "details");
+    {
+        auto hotbarBackground = node("m_hotbarBackground", "Hotbar Background", "details", ConfigControlTypeV2::Toggle);
+        hotbarBackground.section = "appearance";
+        hotbarBackground.defaultValue = "true";
+        hotbarBackground.description = "Draws the vanilla hotbar cells behind the occupied slots.";
+        schema.node(std::move(hotbarBackground));
+    }
+
+    section("auto_hide", "Automatic Hiding", "visibility");
+    {
+        auto hide = node("m_hideInContainer", "Hide While Inventory Is Open", "visibility", ConfigControlTypeV2::Toggle);
+        hide.section = "auto_hide";
+        hide.description = "Hides the armor element while the inventory, a chest or any other container screen is open.";
+        schema.node(std::move(hide));
+    }
+
+    auto help = node("editor_help", "An Element Of Its Own", "editor", ConfigControlTypeV2::Info);
     help.key.clear();
-    help.description = "Open the HUD Editor to drag each item separately. Existing positions are preserved.";
+    help.description = "Armor & Offhand is its own module now: the HUD Editor shows one element for it, which you can place anywhere, with or without the Inventory HUD module enabled.";
     schema.node(std::move(help));
     section("snapping", "Snapping", "editor");
-    auto snapping = node("snap_targets", "Snap To", "editor", ConfigControlTypeV2::ToggleGroup);
-    snapping.key.clear();
-    snapping.section = "snapping";
-    snapping.choiceStyle = ConfigChoiceStyleV2::Chips;
-    snapping.options = {
-        {"grid", "Grid", {}, "m_snapToGrid"},
-        {"items", "Other Items", {}, "m_snapToElements"},
-        {"center", "Screen Center", {}, "m_snapToScreenCenter"}
-    };
-    schema.node(std::move(snapping));
-    slider("m_gridSize", "Grid Size", "editor", "snapping", "1", "100", "m_snapToGrid");
-    slider("m_gridGap", "Gap Between Items", "editor", "snapping", "0", "100", "m_snapToElements");
+    {
+        auto snapping = node("snap_targets", "Snap To", "editor", ConfigControlTypeV2::ToggleGroup);
+        snapping.key.clear();
+        snapping.section = "snapping";
+        snapping.choiceStyle = ConfigChoiceStyleV2::Chips;
+        snapping.options = {
+            {"grid", "Grid", {}, "m_snapToGrid"},
+            {"items", "Other Elements", {}, "m_snapToElements"},
+            {"center", "Screen Center", {}, "m_snapToScreenCenter"}
+        };
+        schema.node(std::move(snapping));
+    }
+    slider("m_gridSize", "Grid Size", "editor", "snapping", "1", "100", " px", "m_snapToGrid");
+    slider("m_gridGap", "Gap Between Elements", "editor", "snapping", "0", "100", " px", "m_snapToElements");
     slider("m_snapThreshold", "Snap Distance", "editor", "snapping", "1", "100");
 
     pl::modmenu::setConfigSchemaJson(moduleId, schema.toJson());
 }
 
-void ArmorHudModule::onDisable() {
-    clearRuntime();
-    pl::modmenu::submitDrawCommands(moduleId, std::span<const pl::modmenu::DrawCommand>{});
-    pl::modmenu::submitHudEditorElements(moduleId, std::span<const pl::modmenu::HudEditorElement>{});
-}
+nlohmann::json ArmorModule::migratedFromInventoryHud(const nlohmann::json& inventoryHud) {
+    nlohmann::json migrated;
 
-ArmorHudModule::ConfigSnapshot ArmorHudModule::snapshotConfig() const {
-    std::lock_guard lock(m_configMutex);
-    return {
-        std::array<SlotConfig, SlotCount>{
-            SlotConfig{m_helmet, m_helmetDurability, hudHelmetPosX, hudHelmetPosY, m_helmetSize},
-            SlotConfig{m_chestplate, m_chestplateDurability, hudChestplatePosX, hudChestplatePosY, m_chestplateSize},
-            SlotConfig{m_leggings, m_leggingsDurability, hudLeggingsPosX, hudLeggingsPosY, m_leggingsSize},
-            SlotConfig{m_boots, m_bootsDurability, hudBootsPosX, hudBootsPosY, m_bootsSize},
-            SlotConfig{m_offhand, m_offhandDurability, hudOffhandPosX, hudOffhandPosY, m_offhandSize},
-            SlotConfig{m_mainhand, m_mainhandDurability, hudMainhandPosX, hudMainhandPosY, m_mainhandSize}
-        },
-        m_hotbarBackground,
-        m_showDamage,
-        m_showRemaining,
-        m_showMaxDurability,
-        m_showPercentage,
-        m_durabilityTextSize,
-        m_durabilityTextPosition,
-        m_durabilityTextGap,
-        parseColor(m_textColor),
-        m_gridSize,
-        m_gridGap,
-        m_snapThreshold,
-        (m_snapToGrid ? pl::modmenu::HudSnapGrid : pl::modmenu::HudSnapNone) |
-            (m_snapToElements ? pl::modmenu::HudSnapElements : pl::modmenu::HudSnapNone) |
-            (m_snapToScreenCenter ? pl::modmenu::HudSnapScreenCenter : pl::modmenu::HudSnapNone)
+    auto readBool = [&](const char* key, bool fallback) {
+        return inventoryHud.contains(key) ? inventoryHud[key].get<bool>() : fallback;
     };
+    auto readFloat = [&](const char* key, float fallback) {
+        return inventoryHud.contains(key) ? inventoryHud[key].get<float>() : fallback;
+    };
+
+    // The column was only drawn when the Inventory HUD option was on; keep the
+    // module off otherwise so nothing appears out of nowhere.
+    const bool showEquipment = readBool("m_showEquipment", false);
+    migrated["masterEnabled"] = showEquipment && readBool("masterEnabled", false);
+    migrated["keybindActive"] = readBool("keybindActive", true);
+
+    // Position: the column's own anchor when it had one, otherwise the shared
+    // legacy anchor of the grid.
+    float x = readFloat("hudEquipmentPosX", -1.0f);
+    float y = readFloat("hudEquipmentPosY", -1.0f);
+    if (x < 0.0f || y < 0.0f) {
+        x = readFloat("hudPosX", 24.0f);
+        y = readFloat("hudPosY", 200.0f);
+    }
+    migrated["hudPosX"] = x;
+    migrated["hudPosY"] = y;
+
+    for (const char* key : {"m_slotSize", "m_slotGap", "m_countTextSize", "m_gridSize", "m_gridGap",
+                            "m_snapThreshold", "m_countColor", "m_showStackCount", "m_showDurability",
+                            "m_showArmorDurability", "m_hideInContainer", "m_snapToGrid",
+                            "m_snapToElements", "m_snapToScreenCenter", "m_hotbarBackground",
+                            "m_showMainhand"}) {
+        if (inventoryHud.contains(key)) migrated[key] = inventoryHud[key];
+    }
+    return migrated;
 }
 
-void ArmorHudModule::clearRuntime() {
-    for (auto& slot : m_runtime) {
-        slot.hasItem.store(false, std::memory_order_release);
-        slot.damage.store(0, std::memory_order_release);
-        slot.maxDamage.store(0, std::memory_order_release);
-    }
-}
-
-void ArmorHudModule::submitEditorElements(const ConfigSnapshot& config) {
-    std::vector<pl::modmenu::HudEditorElement> elements;
-    elements.reserve(SlotCount);
-    for (std::size_t i = 0; i < SlotCount; ++i) {
-        const SlotConfig& slot = config.slots[i];
-        if (!slot.enabled) continue;
-        pl::modmenu::HudEditorElement element;
-        element.elementId = HudElementIds[i];
-        element.displayName = HudElementNames[i];
-        element.positionKeyX = HudXKeys[i];
-        element.positionKeyY = HudYKeys[i];
-        element.x = slot.x;
-        element.y = slot.y;
-        const float widthScale = config.hotbarBackground ? HotbarCellWidth / VanillaItemSize : 1.0f;
-        const float heightScale = config.hotbarBackground ? HotbarCellHeight / VanillaItemSize : 1.0f;
-        element.width = std::max(1.0f, slot.size * widthScale);
-        element.height = std::max(1.0f, slot.size * heightScale);
-        element.gridSize = config.gridSize;
-        element.snapThreshold = config.snapThreshold;
-        element.gridGap = config.gridGap;
-        element.snapFlags = config.snapFlags;
-        elements.push_back(std::move(element));
-    }
-    pl::modmenu::submitHudEditorElements(moduleId, elements);
-}
-
-void ArmorHudModule::renderNative(void* context, void* client) {
-    if (!context || !client || !baseActorRenderContextCtor || !itemRendererRenderGuiItemNew) {
-        clearRuntime();
-        return;
-    }
-
-    void* localPlayer = getLocalPlayer(client);
-    if (!localPlayer) {
-        clearRuntime();
-        return;
-    }
-
-    const ConfigSnapshot config = snapshotConfig();
-    const auto stacks = getHudStacks(localPlayer);
-    const pl::modmenu::HudSurfaceSize surface = pl::modmenu::getHudSurfaceSize();
-    const RectangleArea full = getFullClippingRectangle(context);
-    const bool canRender = surface.width > 0.0f && surface.height > 0.0f && validRectangle(full);
-
-    alignas(16) std::byte baseActorRenderContext[bedrocktoolsplus::sdk::offsets::ShulkerPreview::BaseActorRenderContextStorageSize]{};
-    void* itemRenderer = nullptr;
-    if (canRender) {
-        void* screenContext = *reinterpret_cast<void**>(reinterpret_cast<std::byte*>(context) + bedrocktoolsplus::sdk::offsets::ShulkerPreview::MinecraftUIRenderContextScreenContext);
-        void* game = getMinecraftGame(client);
-        if (screenContext && game) {
-            baseActorRenderContextCtor(baseActorRenderContext, screenContext, client, game);
-            itemRenderer = *reinterpret_cast<void**>(baseActorRenderContext + bedrocktoolsplus::sdk::offsets::ShulkerPreview::BaseActorRenderContextItemRenderer);
-        }
-    }
-
-    const float uiWidth = full.x1 - full.x0;
-    const float uiHeight = full.y1 - full.y0;
-    bool renderedAny = false;
-
-    if (config.hotbarBackground && canRender) {
-        TexturePtr hotbarTexture = getTexture(context, ResourceLocation(HotbarTexturePath));
-        if (hotbarTexture.clientTexture) {
-            bool renderedBackground = false;
-            for (std::size_t i = 0; i < SlotCount; ++i) {
-                const SlotConfig& slot = config.slots[i];
-                if (!slot.enabled || slot.size <= 0.0f || !getStackItem(stacks[i])) continue;
-
-                const float x = full.x0 + slot.x * uiWidth / surface.width;
-                const float y = full.y0 + slot.y * uiHeight / surface.height;
-                const float width = slot.size * uiWidth / surface.width;
-                const float height = slot.size * uiHeight / surface.height;
-                const float iconSize = std::max(1.0f, std::min(width, height));
-                const float backgroundWidth = iconSize * HotbarCellWidth / VanillaItemSize;
-                const float backgroundHeight = iconSize * HotbarCellHeight / VanillaItemSize;
-                const float backgroundX = x - iconSize * HotbarItemInsetX / VanillaItemSize;
-                const float backgroundY = y - iconSize * HotbarItemInsetY / VanillaItemSize;
-                if (!std::isfinite(backgroundX) || !std::isfinite(backgroundY) ||
-                    !std::isfinite(backgroundWidth) || !std::isfinite(backgroundHeight)) continue;
-
-                drawImage(
-                    context,
-                    hotbarTexture.getClientTexture(),
-                    {backgroundX, backgroundY},
-                    {backgroundWidth, backgroundHeight});
-                renderedBackground = true;
-            }
-            if (renderedBackground) flushImages(context);
-        }
-    }
-
-    if (itemRenderer && canRender && itemStackBaseGetRawNameId) {
-        bool renderedTexturePass = false;
-        setHudOpacity(context, 90.0f);
-        for (std::size_t i = 0; i < SlotCount; ++i) {
-            const SlotConfig& slot = config.slots[i];
-            void* stack = stacks[i];
-            void* item = getStackItem(stack);
-            if (!slot.enabled || !item || slot.size <= 0.0f || !needsTextureOpacityPass(stack)) continue;
-
-            const float x = full.x0 + slot.x * uiWidth / surface.width;
-            const float y = full.y0 + slot.y * uiHeight / surface.height;
-            const float width = slot.size * uiWidth / surface.width;
-            const float height = slot.size * uiHeight / surface.height;
-            const float iconSize = std::max(1.0f, std::min(width, height));
-            if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(iconSize)) continue;
-
-            const unsigned int animationFrame = getItemAnimationFrame(item, localPlayer, stack);
-            itemRendererRenderGuiItemNew(
-                itemRenderer,
-                baseActorRenderContext,
-                stack,
-                animationFrame,
-                0,
-                0,
-                x,
-                y,
-                1.0f,
-                20.0f,
-                iconSize / VanillaItemSize);
-            renderedTexturePass = true;
-        }
-        if (renderedTexturePass) flushImages(context);
-        setHudOpacity(context, 1.0f);
-    }
-
-    for (std::size_t i = 0; i < SlotCount; ++i) {
-        void* stack = stacks[i];
-        void* item = getStackItem(stack);
-        const bool hasItem = item != nullptr;
-        int damage = 0;
-        int maxDamage = 0;
-        if (hasItem) {
-            damage = std::max(0, getStackDamage(stack));
-            maxDamage = std::max(0, static_cast<int>(getMaxDamage(item)));
-        }
-        m_runtime[i].hasItem.store(hasItem, std::memory_order_release);
-        m_runtime[i].damage.store(damage, std::memory_order_release);
-        m_runtime[i].maxDamage.store(maxDamage, std::memory_order_release);
-
-        const SlotConfig& slot = config.slots[i];
-        if (!slot.enabled || !hasItem || !itemRenderer || !canRender || slot.size <= 0.0f) continue;
-
-        const float x = full.x0 + slot.x * uiWidth / surface.width;
-        const float y = full.y0 + slot.y * uiHeight / surface.height;
-        const float width = slot.size * uiWidth / surface.width;
-        const float height = slot.size * uiHeight / surface.height;
-        const float iconSize = std::max(1.0f, std::min(width, height));
-        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(iconSize)) continue;
-
-        const unsigned int animationFrame = getItemAnimationFrame(item, localPlayer, stack);
-        itemRendererRenderGuiItemNew(
-            itemRenderer,
-            baseActorRenderContext,
-            stack,
-            animationFrame,
-            0,
-            0,
-            x,
-            y,
-            1.0f,
-            1.0f,
-            iconSize / VanillaItemSize);
-        renderedAny = true;
-    }
-
-    if (itemRenderer) destroyBaseActorRenderContext(baseActorRenderContext);
-    if (renderedAny) flushImages(context);
-}
-
-void ArmorHudModule::onFrame() {
-    if (!enabled) return;
-
-    const ConfigSnapshot config = snapshotConfig();
-    submitEditorElements(config);
-
-    std::vector<pl::modmenu::DrawCommand> commands;
-    commands.reserve(SlotCount);
-
-    for (std::size_t i = 0; i < SlotCount; ++i) {
-        const SlotConfig& slot = config.slots[i];
-        if (!slot.enabled) continue;
-
-        const bool hasItem = m_runtime[i].hasItem.load(std::memory_order_acquire);
-        const int damage = m_runtime[i].damage.load(std::memory_order_acquire);
-        const int maxDamage = m_runtime[i].maxDamage.load(std::memory_order_acquire);
-        if (!slot.durability || !hasItem || maxDamage <= 0) continue;
-
-        const int safeDamage = std::clamp(damage, 0, maxDamage);
-        const int remaining = maxDamage - safeDamage;
-        const int percentage = static_cast<int>(std::lround(remaining * 100.0 / maxDamage));
-        std::string text;
-        auto append = [&](const std::string& part) {
-            if (!text.empty()) text += "  ";
-            text += part;
-        };
-        if (config.showDamage) append(std::to_string(safeDamage) + " dmg");
-        if (config.showRemaining && config.showMaxDurability) {
-            append(std::to_string(remaining) + "/" + std::to_string(maxDamage));
-        } else if (config.showRemaining) {
-            append(std::to_string(remaining));
-        } else if (config.showMaxDurability) {
-            append(std::to_string(maxDamage) + " max");
-        }
-        if (config.showPercentage) append(std::to_string(percentage) + "%");
-        if (text.empty()) continue;
-
-        pl::modmenu::DrawCommand durability;
-        durability.type = pl::modmenu::DrawCommandType::Text;
-        const float backgroundLeft = config.hotbarBackground ? slot.x - slot.size * HotbarItemInsetX / VanillaItemSize : slot.x;
-        const float backgroundTop = config.hotbarBackground ? slot.y - slot.size * HotbarItemInsetY / VanillaItemSize : slot.y;
-        const float backgroundWidth = config.hotbarBackground ? slot.size * HotbarCellWidth / VanillaItemSize : slot.size;
-        const float backgroundHeight = config.hotbarBackground ? slot.size * HotbarCellHeight / VanillaItemSize : slot.size;
-        const float verticalCenterBaseline = backgroundTop + backgroundHeight * 0.5f + config.durabilityTextSize * 0.35f;
-        if (config.durabilityTextPosition == 1) {
-            durability.x = backgroundLeft - config.durabilityTextGap;
-            durability.y = verticalCenterBaseline;
-            durability.w = -1.0f;
-        } else if (config.durabilityTextPosition == 2) {
-            durability.x = backgroundLeft + backgroundWidth * 0.5f;
-            durability.y = backgroundTop + backgroundHeight + config.durabilityTextGap + config.durabilityTextSize;
-            durability.w = -2.0f;
-        } else {
-            durability.x = backgroundLeft + backgroundWidth + config.durabilityTextGap;
-            durability.y = verticalCenterBaseline;
-            durability.w = 0.0f;
-        }
-        durability.color = config.textColor;
-        durability.size = config.durabilityTextSize;
-        durability.text = std::move(text);
-        commands.push_back(std::move(durability));
-    }
-
-    pl::modmenu::submitDrawCommands(moduleId, commands);
-}
-
-void ArmorHudModule::loadConfig(const nlohmann::json& j) {
+void ArmorModule::loadConfig(const nlohmann::json& j) {
     Module::loadConfig(j);
     std::lock_guard lock(m_configMutex);
 
-    if (j.contains("m_helmet")) m_helmet = j["m_helmet"].get<bool>();
-    if (j.contains("m_helmetDurability")) m_helmetDurability = j["m_helmetDurability"].get<bool>();
-    if (j.contains("hudHelmetPosX")) hudHelmetPosX = std::clamp(j["hudHelmetPosX"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("hudHelmetPosY")) hudHelmetPosY = std::clamp(j["hudHelmetPosY"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("m_helmetSize")) m_helmetSize = std::clamp(j["m_helmetSize"].get<float>(), 8.0f, 100.0f);
-
-    if (j.contains("m_chestplate")) m_chestplate = j["m_chestplate"].get<bool>();
-    if (j.contains("m_chestplateDurability")) m_chestplateDurability = j["m_chestplateDurability"].get<bool>();
-    if (j.contains("hudChestplatePosX")) hudChestplatePosX = std::clamp(j["hudChestplatePosX"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("hudChestplatePosY")) hudChestplatePosY = std::clamp(j["hudChestplatePosY"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("m_chestplateSize")) m_chestplateSize = std::clamp(j["m_chestplateSize"].get<float>(), 8.0f, 100.0f);
-
-    if (j.contains("m_leggings")) m_leggings = j["m_leggings"].get<bool>();
-    if (j.contains("m_leggingsDurability")) m_leggingsDurability = j["m_leggingsDurability"].get<bool>();
-    if (j.contains("hudLeggingsPosX")) hudLeggingsPosX = std::clamp(j["hudLeggingsPosX"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("hudLeggingsPosY")) hudLeggingsPosY = std::clamp(j["hudLeggingsPosY"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("m_leggingsSize")) m_leggingsSize = std::clamp(j["m_leggingsSize"].get<float>(), 8.0f, 100.0f);
-
-    if (j.contains("m_boots")) m_boots = j["m_boots"].get<bool>();
-    if (j.contains("m_bootsDurability")) m_bootsDurability = j["m_bootsDurability"].get<bool>();
-    if (j.contains("hudBootsPosX")) hudBootsPosX = std::clamp(j["hudBootsPosX"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("hudBootsPosY")) hudBootsPosY = std::clamp(j["hudBootsPosY"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("m_bootsSize")) m_bootsSize = std::clamp(j["m_bootsSize"].get<float>(), 8.0f, 100.0f);
-
-    if (j.contains("m_offhand")) m_offhand = j["m_offhand"].get<bool>();
-    if (j.contains("m_offhandDurability")) m_offhandDurability = j["m_offhandDurability"].get<bool>();
-    if (j.contains("hudOffhandPosX")) hudOffhandPosX = std::clamp(j["hudOffhandPosX"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("hudOffhandPosY")) hudOffhandPosY = std::clamp(j["hudOffhandPosY"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("m_offhandSize")) m_offhandSize = std::clamp(j["m_offhandSize"].get<float>(), 8.0f, 100.0f);
-
-    if (j.contains("m_mainhand")) m_mainhand = j["m_mainhand"].get<bool>();
-    if (j.contains("m_mainhandDurability")) m_mainhandDurability = j["m_mainhandDurability"].get<bool>();
-    if (j.contains("hudMainhandPosX")) hudMainhandPosX = std::clamp(j["hudMainhandPosX"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("hudMainhandPosY")) hudMainhandPosY = std::clamp(j["hudMainhandPosY"].get<float>(), 0.0f, 4000.0f);
-    if (j.contains("m_mainhandSize")) m_mainhandSize = std::clamp(j["m_mainhandSize"].get<float>(), 8.0f, 100.0f);
-
-    if (j.contains("m_hotbarBackground")) m_hotbarBackground = j["m_hotbarBackground"].get<bool>();
-    if (j.contains("m_showDamage")) m_showDamage = j["m_showDamage"].get<bool>();
-    if (j.contains("m_showRemaining")) m_showRemaining = j["m_showRemaining"].get<bool>();
-    if (j.contains("m_showMaxDurability")) m_showMaxDurability = j["m_showMaxDurability"].get<bool>();
-    if (j.contains("m_showPercentage")) m_showPercentage = j["m_showPercentage"].get<bool>();
-    if (j.contains("m_durabilityTextSize")) m_durabilityTextSize = std::clamp(j["m_durabilityTextSize"].get<float>(), 6.0f, 100.0f);
-    if (j.contains("m_durabilityTextPosition")) {
-        try {
-            std::string value = j["m_durabilityTextPosition"].get<std::string>();
-            const std::size_t separator = value.find(',');
-            if (separator != std::string::npos) value.resize(separator);
-            m_durabilityTextPosition = std::clamp(std::stoi(value), 0, 2);
-        } catch (...) {
-        }
-    }
-    if (j.contains("m_durabilityTextGap")) m_durabilityTextGap = std::clamp(j["m_durabilityTextGap"].get<float>(), 0.0f, 100.0f);
-    if (j.contains("m_textColor")) m_textColor = j["m_textColor"].get<std::string>();
+    if (j.contains("hudPosX")) hudPosX = std::clamp(j["hudPosX"].get<float>(), 0.0f, 4000.0f);
+    if (j.contains("hudPosY")) hudPosY = std::clamp(j["hudPosY"].get<float>(), 0.0f, 4000.0f);
+    if (j.contains("m_slotSize")) m_slotSize = std::clamp(j["m_slotSize"].get<float>(), 8.0f, 100.0f);
+    if (j.contains("m_slotGap")) m_slotGap = std::clamp(j["m_slotGap"].get<float>(), 0.0f, 50.0f);
+    if (j.contains("m_horizontal")) m_horizontal = j["m_horizontal"].get<bool>();
+    if (j.contains("m_showOffhand")) m_showOffhand = j["m_showOffhand"].get<bool>();
+    if (j.contains("m_showMainhand")) m_showMainhand = j["m_showMainhand"].get<bool>();
+    if (j.contains("m_showStackCount")) m_showStackCount = j["m_showStackCount"].get<bool>();
+    if (j.contains("m_showDurability")) m_showDurability = j["m_showDurability"].get<bool>();
+    if (j.contains("m_showArmorDurability")) m_showArmorDurability = j["m_showArmorDurability"].get<bool>();
+    if (j.contains("m_hideInContainer")) m_hideInContainer = j["m_hideInContainer"].get<bool>();
+    if (j.contains("m_slotBackground")) m_slotBackground = j["m_slotBackground"].get<bool>();
+    if (j.contains("m_slotBgOpacity")) m_slotBgOpacity = std::clamp(j["m_slotBgOpacity"].get<float>(), 0.05f, 1.0f);
+    if (j.contains("m_slotBgColor")) m_slotBgColor = j["m_slotBgColor"].get<std::string>();
+    if (j.contains("m_countTextSize")) m_countTextSize = std::clamp(j["m_countTextSize"].get<float>(), 6.0f, 40.0f);
+    if (j.contains("m_countColor")) m_countColor = j["m_countColor"].get<std::string>();
     if (j.contains("m_gridSize")) m_gridSize = std::clamp(j["m_gridSize"].get<float>(), 1.0f, 100.0f);
     if (j.contains("m_gridGap")) m_gridGap = std::clamp(j["m_gridGap"].get<float>(), 0.0f, 100.0f);
     if (j.contains("m_snapThreshold")) m_snapThreshold = std::clamp(j["m_snapThreshold"].get<float>(), 1.0f, 100.0f);
     if (j.contains("m_snapToGrid")) m_snapToGrid = j["m_snapToGrid"].get<bool>();
     if (j.contains("m_snapToElements")) m_snapToElements = j["m_snapToElements"].get<bool>();
     if (j.contains("m_snapToScreenCenter")) m_snapToScreenCenter = j["m_snapToScreenCenter"].get<bool>();
+    if (j.contains("m_hotbarBackground")) m_hotbarBackground = j["m_hotbarBackground"].get<bool>();
 }
 
-void ArmorHudModule::saveConfig(nlohmann::json& j) {
+void ArmorModule::saveConfig(nlohmann::json& j) {
     Module::saveConfig(j);
     std::lock_guard lock(m_configMutex);
 
-    j["m_helmet"] = m_helmet;
-    j["m_helmetDurability"] = m_helmetDurability;
-    j["hudHelmetPosX"] = hudHelmetPosX;
-    j["hudHelmetPosY"] = hudHelmetPosY;
-    j["m_helmetSize"] = m_helmetSize;
-
-    j["m_chestplate"] = m_chestplate;
-    j["m_chestplateDurability"] = m_chestplateDurability;
-    j["hudChestplatePosX"] = hudChestplatePosX;
-    j["hudChestplatePosY"] = hudChestplatePosY;
-    j["m_chestplateSize"] = m_chestplateSize;
-
-    j["m_leggings"] = m_leggings;
-    j["m_leggingsDurability"] = m_leggingsDurability;
-    j["hudLeggingsPosX"] = hudLeggingsPosX;
-    j["hudLeggingsPosY"] = hudLeggingsPosY;
-    j["m_leggingsSize"] = m_leggingsSize;
-
-    j["m_boots"] = m_boots;
-    j["m_bootsDurability"] = m_bootsDurability;
-    j["hudBootsPosX"] = hudBootsPosX;
-    j["hudBootsPosY"] = hudBootsPosY;
-    j["m_bootsSize"] = m_bootsSize;
-
-    j["m_offhand"] = m_offhand;
-    j["m_offhandDurability"] = m_offhandDurability;
-    j["hudOffhandPosX"] = hudOffhandPosX;
-    j["hudOffhandPosY"] = hudOffhandPosY;
-    j["m_offhandSize"] = m_offhandSize;
-
-    j["m_mainhand"] = m_mainhand;
-    j["m_mainhandDurability"] = m_mainhandDurability;
-    j["hudMainhandPosX"] = hudMainhandPosX;
-    j["hudMainhandPosY"] = hudMainhandPosY;
-    j["m_mainhandSize"] = m_mainhandSize;
-
-    j["m_hotbarBackground"] = m_hotbarBackground;
-    j["m_showDamage"] = m_showDamage;
-    j["m_showRemaining"] = m_showRemaining;
-    j["m_showMaxDurability"] = m_showMaxDurability;
-    j["m_showPercentage"] = m_showPercentage;
-    j["m_durabilityTextSize"] = m_durabilityTextSize;
-    j["m_durabilityTextPosition"] = std::to_string(m_durabilityTextPosition) + ",Right,Left,Below";
-    j["m_durabilityTextGap"] = m_durabilityTextGap;
-    j["m_textColor"] = m_textColor;
+    j["hudPosX"] = hudPosX;
+    j["hudPosY"] = hudPosY;
+    j["m_slotSize"] = m_slotSize;
+    j["m_slotGap"] = m_slotGap;
+    j["m_horizontal"] = m_horizontal;
+    j["m_showOffhand"] = m_showOffhand;
+    j["m_showMainhand"] = m_showMainhand;
+    j["m_showStackCount"] = m_showStackCount;
+    j["m_showDurability"] = m_showDurability;
+    j["m_showArmorDurability"] = m_showArmorDurability;
+    j["m_hideInContainer"] = m_hideInContainer;
+    j["m_slotBackground"] = m_slotBackground;
+    j["m_slotBgOpacity"] = m_slotBgOpacity;
+    j["m_slotBgColor"] = m_slotBgColor;
+    j["m_countTextSize"] = m_countTextSize;
+    j["m_countColor"] = m_countColor;
     j["m_gridSize"] = m_gridSize;
     j["m_gridGap"] = m_gridGap;
     j["m_snapThreshold"] = m_snapThreshold;
     j["m_snapToGrid"] = m_snapToGrid;
     j["m_snapToElements"] = m_snapToElements;
-    j["m_snapToScreenCenter"] = m_snapToScreenCenter;
+    j["m_snapToScreenCenter"] = m_snapToScreenCenter; 
+    j["m_hotbarBackground"] = m_hotbarBackground;
 }

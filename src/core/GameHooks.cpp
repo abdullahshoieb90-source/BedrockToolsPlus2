@@ -1,10 +1,10 @@
 #include "GameHooks.hpp"
-#include <bedrocktoolsplus/Version.hpp>
+#include <bedrocktools/Version.hpp>
 
 #include "core/memory/Hooks.hpp"
-#include <bedrocktoolsplus/events/EventBus.hpp>
-#include <bedrocktoolsplus/memory/Signatures.hpp>
-#include <bedrocktoolsplus/sdk/offsets/UI.hpp>
+#include <bedrocktools/events/EventBus.hpp>
+#include <bedrocktools/memory/Signatures.hpp>
+#include <bedrocktools/sdk/offsets/UI.hpp>
 #include <EGL/egl.h>
 #include <array>
 #include <atomic>
@@ -13,10 +13,10 @@
 #include <mutex>
 #include <string>
 
-namespace bedrocktoolsplus::core::gamehooks {
+namespace bedrocktools::core::gamehooks {
 namespace {
-using namespace bedrocktoolsplus::events;
-using bedrocktoolsplus::memory::SignatureId;
+using namespace bedrocktools::events;
+using bedrocktools::memory::SignatureId;
 
 struct InteractionResultValue {
     std::uint8_t value;
@@ -61,7 +61,7 @@ ScreenFn chatOpenOriginal = nullptr;
 ScreenFn chatCloseOriginal = nullptr;
 EglSwapBuffersFn swapBuffersOriginal = nullptr;
 std::atomic<void*> currentClientInstance = nullptr;
-std::array<bedrocktoolsplus::hooks::Handle, 26> handles{};
+std::array<bedrocktools::hooks::Handle, 26> handles{};
 std::size_t handleCount = 0;
 std::mutex installMutex;
 bool installed = false;
@@ -70,9 +70,9 @@ thread_local std::uint32_t gameModeActionDepth = 0;
 
 template <class Function>
 bool hookSignature(SignatureId id, void* detour, Function** original) {
-    const auto address = bedrocktoolsplus::memory::resolve(id);
+    const auto address = bedrocktools::memory::resolve(id);
     if (!address) return false;
-    bedrocktoolsplus::hooks::Handle handle = bedrocktoolsplus::hooks::install(reinterpret_cast<void*>(address), detour, reinterpret_cast<void**>(original));
+    bedrocktools::hooks::Handle handle = bedrocktools::hooks::install(reinterpret_cast<void*>(address), detour, reinterpret_cast<void**>(original));
     if (!handle) return false;
     if (handleCount < handles.size()) handles[handleCount++] = handle;
     return true;
@@ -110,14 +110,14 @@ bool interactionSwings(InteractionResultValue result) {
 bool itemStackHasItem(const void* itemStack) {
     if (!itemStack) return false;
     const auto* bytes = reinterpret_cast<const std::byte*>(itemStack);
-    auto* counter = *reinterpret_cast<void* const*>(bytes + bedrocktoolsplus::sdk::offsets::ShulkerPreview::ItemStackBaseItem);
+    auto* counter = *reinterpret_cast<void* const*>(bytes + bedrocktools::sdk::offsets::ShulkerPreview::ItemStackBaseItem);
     if (!counter) return false;
     return *reinterpret_cast<void* const*>(counter) != nullptr;
 }
 
 AttackKind attackKindFor(void* gameMode) {
     if (!gameMode) return AttackKind::GameMode;
-    const auto survivalAttack = bedrocktoolsplus::memory::resolve(SignatureId::SurvivalModeAttack);
+    const auto survivalAttack = bedrocktools::memory::resolve(SignatureId::SurvivalModeAttack);
     if (!survivalAttack) return AttackKind::GameMode;
     auto** vtable = *reinterpret_cast<void***>(gameMode);
     if (!vtable) return AttackKind::GameMode;
@@ -127,11 +127,11 @@ AttackKind attackKindFor(void* gameMode) {
 std::string versionDetour(void* self) {
     std::string version = versionOriginal ? versionOriginal(self) : std::string{};
     if (gameVersion.empty()) gameVersion = version;
-    return std::string("\xC2\xA7" "b") + std::string(bedrocktoolsplus::Name) + " v" + std::string(bedrocktoolsplus::Version) + " " + "\xC2\xA7" "fby " + "\xC2\xA7" "e" + std::string(bedrocktoolsplus::Author) + " " + "\xC2\xA7" "f- " + "\xC2\xA7" "r" + version;
+    return std::string("\xC2\xA7" "b") + std::string(bedrocktools::Name) + " v" + std::string(bedrocktools::Version) + " " + "\xC2\xA7" "fby " + "\xC2\xA7" "e" + std::string(bedrocktools::Author) + " " + "\xC2\xA7" "f- " + "\xC2\xA7" "r" + version;
 }
 
 void tickDetour(void* actor) {
-    auto* player = reinterpret_cast<bedrocktoolsplus::sdk::Player*>(actor);
+    auto* player = reinterpret_cast<bedrocktools::sdk::Player*>(actor);
     LocalPlayerPreTickEvent preEvent{player};
     bus().publish(preEvent);
     if (tickOriginal) tickOriginal(actor);
@@ -233,7 +233,7 @@ bool gameModeAttackDetour(void* gameMode, void* target, bool playPredictiveSound
     const GameModeType modeKind = kind == AttackKind::SurvivalMode ? GameModeType::SurvivalMode : GameModeType::GameMode;
     GameModeActionScope scope{modeKind, gameMode};
     scope.publish(GameModeAction::Attack);
-    AttackEvent event{kind, gameMode, reinterpret_cast<bedrocktoolsplus::sdk::Actor*>(target), reinterpret_cast<void*>(static_cast<std::uintptr_t>(playPredictiveSound)), const_cast<void*>(hitPosition)};
+    AttackEvent event{kind, gameMode, reinterpret_cast<bedrocktools::sdk::Actor*>(target), reinterpret_cast<void*>(static_cast<std::uintptr_t>(playPredictiveSound)), const_cast<void*>(hitPosition)};
     bus().publish(event);
     if (event.cancelled()) return false;
     return gameModeAttackOriginal ? gameModeAttackOriginal(gameMode, target, playPredictiveSound, hitPosition) : false;
@@ -242,7 +242,7 @@ bool gameModeAttackDetour(void* gameMode, void* target, bool playPredictiveSound
 void* clientUpdateDetour(void* clientInstance, bool value) {
     if (clientInstance) currentClientInstance.store(clientInstance, std::memory_order_release);
     void* result = clientUpdateOriginal ? clientUpdateOriginal(clientInstance, value) : nullptr;
-    ClientInstanceUpdateEvent event{reinterpret_cast<bedrocktoolsplus::sdk::ClientInstance*>(clientInstance)};
+    ClientInstanceUpdateEvent event{reinterpret_cast<bedrocktools::sdk::ClientInstance*>(clientInstance)};
     bus().publish(event);
     return result;
 }
@@ -290,15 +290,15 @@ EGLBoolean swapBuffersDetour(EGLDisplay display, EGLSurface surface) {
 }
 
 bool hookEgl() {
-    auto egl = bedrocktoolsplus::hooks::openLibrary("libEGL.so");
+    auto egl = bedrocktools::hooks::openLibrary("libEGL.so");
     if (!egl) return false;
-    const auto address = bedrocktoolsplus::hooks::symbol(egl, "eglSwapBuffers");
+    const auto address = bedrocktools::hooks::symbol(egl, "eglSwapBuffers");
     if (!address) {
-        bedrocktoolsplus::hooks::closeLibrary(egl);
+        bedrocktools::hooks::closeLibrary(egl);
         return false;
     }
-    auto handle = bedrocktoolsplus::hooks::install(reinterpret_cast<void*>(address), reinterpret_cast<void*>(swapBuffersDetour), reinterpret_cast<void**>(&swapBuffersOriginal));
-    bedrocktoolsplus::hooks::closeLibrary(egl);
+    auto handle = bedrocktools::hooks::install(reinterpret_cast<void*>(address), reinterpret_cast<void*>(swapBuffersDetour), reinterpret_cast<void**>(&swapBuffersOriginal));
+    bedrocktools::hooks::closeLibrary(egl);
     if (!handle) return false;
     if (handleCount < handles.size()) handles[handleCount++] = handle;
     return true;
@@ -338,7 +338,7 @@ bool install() {
 void uninstall() {
     std::lock_guard lock(installMutex);
     for (std::size_t i = 0; i < handleCount; ++i) {
-        if (handles[i]) bedrocktoolsplus::hooks::remove(handles[i]);
+        if (handles[i]) bedrocktools::hooks::remove(handles[i]);
         handles[i] = nullptr;
     }
     handleCount = 0;
