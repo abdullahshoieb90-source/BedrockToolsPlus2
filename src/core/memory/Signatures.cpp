@@ -8,7 +8,14 @@
 namespace bedrocktools::memory {
 namespace {
 std::array<std::uintptr_t, SignatureCount> addresses{};
-const std::array<SignatureDefinition, SignatureCount> definitions{{
+
+// The table is deliberately sized from its own initializer list (std::to_array)
+// instead of being declared with a fixed SignatureCount size. A fixed size lets
+// an entry be omitted silently: the remaining slots are then value-initialized,
+// which yields `{ SignatureId(0), "" }` -- an id that aliases VersionString and
+// an empty pattern handed to the scanner. std::to_array keeps the real count, so
+// the static_asserts below can compare it against the enum.
+constexpr auto definitions = std::to_array<SignatureDefinition>({
     SignatureDefinition{SignatureId::VersionString, "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? 91 54 D0 3B D5 F3 03 08 AA ? ? ? F9 ? ? ? F8 E8 03 00 91 ? ? ? 94 ? ? ? 90"},
     SignatureDefinition{SignatureId::Nametag, "? ? ? D1 ? ? ? 6D ? ? ? 6D ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 57 D0 3B D5 FA 03 01 AA"},
     SignatureDefinition{SignatureId::Fullbright, "? ? ? A9 FD 03 00 91 ? ? ? F9 ? ? ? 52 ? ? ? F9 00 01 3F D6 ? ? ? A8 ? ? ? 14 ? ? ? A9 ? ? ? F9 FD 03 00 91 ? ? ? F9 F3 03 01 2A ? ? ? 52 ? ? ? F9 00 01 3F D6 E1 03 13 2A ? ? ? F9 ? ? ? A8 ? ? ? 14 ? ? ? A9 ? ? ? A9"},
@@ -43,7 +50,7 @@ const std::array<SignatureDefinition, SignatureCount> definitions{{
     SignatureDefinition{SignatureId::ChatScreenOpen, "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 56 D0 3B D5 F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? F9 ? ? ? 94 F5 03 00 AA ? ? ? B0"},
     SignatureDefinition{SignatureId::BiomeGetTemperature, "? ? ? D1 ? ? ? 6D ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 57 D0 3B D5 F6 03 00 AA"},
     SignatureDefinition{SignatureId::GetDestroyProgress, "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? A9 ? ? ? 91 57 D0 3B D5 F4 03 01 AA F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? 94 ? ? ? F9"},
-    SignatureDefinition{SignatureId::RenderLevel, "? ? ? FC ? ? ? 6D ? ? ? 6D ? ? ? 6D ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D1 57 D0 3B D5 F8 03 00 AA "},
+    SignatureDefinition{SignatureId::RenderLevel, "? ? ? FC ? ? ? 6D ? ? ? 6D ? ? ? 6D ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D1 57 D0 3B D5 F8 03 00 AA"},
     SignatureDefinition{SignatureId::TessellatorBegin, "? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 FD 03 00 91 ? ? ? 39 ? ? ? 39 08 01 09 2A"},
     SignatureDefinition{SignatureId::TessellatorColor, "? ? ? 52 ? ? ? 39 04 01 27 1E"},
     SignatureDefinition{SignatureId::TessellatorVertex, "? ? ? D1 ? ? ? FD ? ? ? 6D ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 5A D0 3B D5 ? ? ? F9 E8 17 00 F9"},
@@ -95,6 +102,13 @@ const std::array<SignatureDefinition, SignatureCount> definitions{{
     SignatureDefinition{SignatureId::LocalPlayerChangeDimension, "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 5A D0 3B D5 F6 03 01 AA F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? 95"},
     SignatureDefinition{SignatureId::NbtTreeFind, "? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 FD 03 00 91 F3 03 00 AA ? ? ? F8 ? ? ? B4 ? ? ? A9 F5 03 13 AA ? ? ? 14 F5 03 17 AA ? ? ? F8 ? ? ? B4 ? ? ? 39 ? ? ? 36 ? ? ? F9 ? ? ? 36 ? ? ? F9 1F 03 16 EB E0 03 14 AA 02 33 96 9A ? ? ? 95 ? ? ? 34 ? ? ? 37 ? ? ? 52 1F 01 00 71 ? ? ? 54 ? ? ? 52 1F 01 00 71 ? ? ? 54 ? ? ? 17 ? ? ? 91 ? ? ? 37 ? ? ? D3 1F 03 16 EB E0 03 14 AA 02 33 96 9A ? ? ? 95 ? ? ? 35 DF 02 18 EB ? ? ? 54 E8 03 1F 2A 1F 01 00 71 ? ? ? 54 ? ? ? 14 ? ? ? 54 ? ? ? 52 1F 01 00 71 ? ? ? 54 E9 03 1F AA 1F 01 00 71 ? ? ? 54 ? ? ? 17 BF 02 13 EB ? ? ? 54 ? ? ? 39 ? ? ? A9 E0 03 14 AA ? ? ? D3 ? ? ? 72 ? ? ? 91 01 01 8B 9A 57 01 89 9A FF 02 16 EB E2 32 96 9A ? ? ? 95 DF 02 17 EB E8 27 9F 1A 1F 00 00 71 E9 A7 9F 1A 08 01 89 1A 1F 01 00 71 73 12 95 9A E0 03 13 AA ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A8 C0 03 5F D6 ? ? ? A9 ? ? ? A9"},
     SignatureDefinition{SignatureId::ItemStackBaseLoadItem, "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 5B D0 3B D5 F4 03 01 AA F3 03 00 AA ? ? ? F9 ? ? ? F8 ? ? ? 91"},
+    // Not yet located: this needs the real ARM64 pattern of
+    // HudMobEffectsRenderer::_renderStatusEffects for the targeted game build.
+    // An empty pattern is skipped by resolveAll(), so resolve() returns 0 and
+    // EffectDisplayModule::installVanillaBarHook() bails out quietly, leaving
+    // the vanilla potion bar visible. The entry exists so the enum and the table
+    // stay in lockstep (see signatureTableCoversEnum).
+    SignatureDefinition{SignatureId::RenderPotionEffects, ""},
     SignatureDefinition{SignatureId::ItemStackBaseGetDamageValue, "? ? ? F9 ? ? ? B4 ? ? ? F9 ? ? ? B4 ? ? ? F9 E0 03 08 AA ? ? ? 14 E0 03 1F 2A C0 03 5F D6 ? ? ? D1"},
     SignatureDefinition{SignatureId::ItemStackBaseGetRawNameId, "? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? A9 FD 03 00 91 ? ? ? F9 ? ? ? A9 ? ? ? F9 ? ? ? B4"},
     SignatureDefinition{SignatureId::BaseActorRenderContextCtor, "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 56 D0 3B D5 F3 03 00 AA F4 03 02 AA ? ? ? F9 F5 03 01 AA ? ? ? F8 ? ? ? B0"},
@@ -132,22 +146,59 @@ const std::array<SignatureDefinition, SignatureCount> definitions{{
     SignatureDefinition{SignatureId::ItemInHandRendererRenderFirstPerson, "? ? ? D1 ? ? ? 6D ? ? ? 6D ? ? ? 6D ? ? ? 6D ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 ? ? ? D5 FC 03 00 AA"},
     SignatureDefinition{SignatureId::MobGetModifiedSwingDuration, "? ? ? A9 ? ? ? A9 FD 03 00 91 ? ? ? 52 F3 03 00 AA ? ? ? 94 ? ? ? B4"},
     SignatureDefinition{SignatureId::ContainerScreenControllerHandleAutoPlace, "? ? ? D1 ? ? ? A9 ? ? ? F9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 58 D0 3B D5 F3 03 03 2A F4 03 02 AA ? ? ? F9 F5 03 00 AA F6 03 01 2A ? ? ? F8 ? ? ? F9 ? ? ? F9"},
-    SignatureDefinition{SignatureId::ActorGetOffhandSlot, "? ? ? A9 FD 03 00 91 ? ? ? 91 ? ? ? 94 ? ? ? F9 ? ? ? F9 21 00 80 52 ? ? ? A8 40 00 1F D6 28 1C 00 72 "},
-}};
+    SignatureDefinition{SignatureId::ActorGetOffhandSlot, "? ? ? A9 FD 03 00 91 ? ? ? 91 ? ? ? 94 ? ? ? F9 ? ? ? F9 21 00 80 52 ? ? ? A8 40 00 1F D6 28 1C 00 72"},
+});
+
+// Every SignatureId must be covered by exactly one pattern. These catch the two
+// ways the table drifts away from the enum: forgetting an entry when an id is
+// added, and registering the same id twice.
+constexpr bool signatureTableCoversEnum() {
+    if (definitions.size() != SignatureCount) return false;
+    std::array<unsigned, SignatureCount> hits{};
+    for (const auto& definition : definitions) {
+        const auto index = static_cast<std::size_t>(definition.id);
+        if (index >= SignatureCount) return false;
+        ++hits[index];
+    }
+    for (const auto hit : hits) {
+        if (hit != 1u) return false;
+    }
+    return true;
+}
+
+static_assert(signatureTableCoversEnum(),
+    "src/core/memory/Signatures.cpp must define exactly one pattern for every "
+    "SignatureId in include/bedrocktools/memory/Signatures.hpp. An id listed in "
+    "the enum but absent here used to be silently value-initialized to "
+    "{ VersionString, \"\" }, which then overwrote the resolved VersionString "
+    "address. Add the ARM64 pattern, or an explicit empty placeholder if the "
+    "target build does not expose the symbol yet.");
 }
 
 bool resolveAll(std::string_view libraryName) {
     const std::string library(libraryName);
+    // Only scan patterns that exist. An empty pattern is a documented
+    // "not located yet" placeholder: sending it to the scanner can return a
+    // match at the section base, which would then be installed as a hook
+    // address. Skipping it keeps resolve() at 0 so callers take their
+    // graceful "feature unavailable" path instead of patching a bogus target.
     std::vector<std::string> patterns;
+    std::vector<std::size_t> definitionOf;
     patterns.reserve(definitions.size());
-    for (const auto& definition : definitions) patterns.emplace_back(definition.pattern);
-    const auto resolved = pl::memory::resolveSignatures(patterns, library.c_str());
-    addresses.fill(0);
-    bool any = false;
+    definitionOf.reserve(definitions.size());
     for (std::size_t i = 0; i < definitions.size(); ++i) {
+        if (definitions[i].pattern.empty()) continue;
+        patterns.emplace_back(definitions[i].pattern);
+        definitionOf.push_back(i);
+    }
+    addresses.fill(0);
+    if (patterns.empty()) return false;
+    const auto resolved = pl::memory::resolveSignatures(patterns, library.c_str());
+    bool any = false;
+    for (std::size_t i = 0; i < patterns.size(); ++i) {
         const auto it = resolved.find(patterns[i]);
         if (it == resolved.end() || it->second == 0) continue;
-        addresses[static_cast<std::size_t>(definitions[i].id)] = it->second;
+        addresses[static_cast<std::size_t>(definitions[definitionOf[i]].id)] = it->second;
         any = true;
     }
     return any;
